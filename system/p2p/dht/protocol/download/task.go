@@ -35,15 +35,17 @@ func (t Tasks) Swap(a, b int) {
 	t[a], t[b] = t[b], t[a]
 }
 
-func (t Tasks) Remove(index int) Tasks {
-	if index+1 > t.Size() {
+func (t Tasks) Remove(task *TaskInfo) Tasks {
+	task.mtx.Lock()
+	defer task.mtx.Unlock()
+	if task.Index+1 > t.Size() {
 		return t
 	}
 
-	t = append(t[:index], t[index+1:]...)
+	t = append(t[:task.Index], t[task.Index+1:]...)
 	return t
-
 }
+
 func (t Tasks) Sort() Tasks {
 	sort.Sort(t)
 	return t

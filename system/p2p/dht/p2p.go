@@ -123,7 +123,7 @@ func (p *P2P) managePeers() {
 
 	for {
 		peerlist := p.discovery.RoutingTale()
-		log.Info("managePeers", "RoutingTale show peerlist>>>>>>>>>", peerlist,
+		log.Debug("managePeers", "RoutingTale show peerlist>>>>>>>>>", peerlist,
 			"table size", p.discovery.RoutingTableSize())
 		if p.isClose() {
 			log.Info("managePeers", "p2p", "closed")
