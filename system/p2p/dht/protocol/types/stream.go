@@ -128,6 +128,7 @@ func (s *BaseStreamHandler) SendToStream(pid string, data types.Message, msgID p
 	if err != nil {
 		return nil, err
 	}
+
 	stream, err := host.NewStream(context.Background(), rID, msgID)
 	if err != nil {
 		log.Error("SendToStream NewStream", "err", err, "remoteID", rID)
