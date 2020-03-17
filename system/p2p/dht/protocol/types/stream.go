@@ -108,7 +108,7 @@ func (s *BaseStreamHandler) GetProtocol() IProtocol {
 func (s *BaseStreamHandler) HandleStream(stream core.Stream) {
 	log.Debug("BaseStreamHandler", "HandlerStream", stream.Conn().RemoteMultiaddr().String(), "proto", stream.Protocol())
 	//TODO verify校验放在这里
-
+	defer stream.Close()
 	s.child.Handle(stream)
 
 }
@@ -119,6 +119,7 @@ func (s *BaseStreamHandler) StreamSendHandler(in *StreamRequest, result types.Me
 	if err != nil {
 		return err
 	}
+	defer stream.Close()
 	return s.ReadProtoMessage(result, stream)
 }
 

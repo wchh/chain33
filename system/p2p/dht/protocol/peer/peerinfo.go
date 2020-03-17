@@ -85,8 +85,6 @@ func (p *peerInfoProtol) getLoacalPeerInfo() *types.P2PPeerInfo {
 
 //p2pserver 端接收处理事件
 func (p *peerInfoProtol) onReq(req *types.MessagePeerInfoReq, s core.Stream) {
-	defer s.Close()
-
 	log.Debug(" OnReq", "localPeer", s.Conn().LocalPeer().String(), "remotePeer", s.Conn().RemotePeer().String(), "peerproto", s.Protocol())
 
 	peerinfo := p.getLoacalPeerInfo()

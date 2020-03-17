@@ -20,9 +20,9 @@ var (
 )
 
 const (
-	MinLimitPeerNum     = 10 //最少连接节点数
-	MiddleLimitePeerNum = 25
-	MaxLimitPeerNum     = 75 //最大连接数
+	MinBounds    = 25 //最少连接节点数，包含连接被连接
+	MaxBounds    = 75 //最大连接数包含连接被连接
+	MaxOutBounds = 25 //对外连接的最大节点数量
 )
 
 type ConnManager struct {
@@ -106,19 +106,17 @@ func (s *ConnManager) MonitorAllPeers(seeds []string, host core.Host) {
 		case <-time.After(time.Minute * 10):
 			//处理当前连接的节点问题
 
-
-			if s.OutboundSize() <= MiddleLimitePeerNum {
+			if s.OutboundSize() <= MaxOutBounds {
 				continue
 			}
 			nearestPeers := s.convertArrToMap(s.FetchNearestPeers())
 			//close from seed
 			for _, pid := range s.OutBounds() {
-
 				if _, ok := net.DefaultBootstrapPeers[pid.Pretty()]; ok {
 					// 判断是否是最近nearest的50个节点
 					if _, ok := nearestPeers[pid.Pretty()]; !ok {
 						s.host.Network().ClosePeer(pid)
-						if s.OutboundSize() <= MiddleLimitePeerNum {
+						if s.OutboundSize() <= MinBounds {
 							break
 						}
 					}
@@ -166,19 +164,18 @@ func (s *ConnManager) Size() int {
 //FetchConnPeers 获取连接的Peer's ID 这个连接包含被连接的peer以及主动连接的peer.
 func (s *ConnManager) FetchConnPeers() []peer.ID {
 	var peers = make(map[string]peer.ID)
-
 	for _, conn := range s.host.Network().Conns() {
 		//peers=append(peers,conn.RemotePeer())
 		peers[conn.RemotePeer().Pretty()] = conn.RemotePeer()
 	}
 
-	if s.OutboundSize() < MinLimitPeerNum {
+	if len(peers) < MinBounds {
 		nearpeers := s.FetchNearestPeers()
 		for _, peer := range nearpeers {
 			if _, ok := peers[peer.Pretty()]; !ok {
 				peers[peer.Pretty()] = peer
 			}
-			if len(peers) >= MaxLimitPeerNum {
+			if len(peers) >= MaxOutBounds {
 				break
 			}
 		}
@@ -187,8 +184,6 @@ func (s *ConnManager) FetchConnPeers() []peer.ID {
 
 	return s.convertMapToArr(peers)
 }
-
-
 
 func (s *ConnManager) convertMapToArr(in map[string]peer.ID) []peer.ID {
 	var pids []peer.ID
