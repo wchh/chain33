@@ -167,6 +167,7 @@ func (s *ConnManager) FetchConnPeers() []peer.ID {
 	for _, conn := range s.host.Network().Conns() {
 		//peers=append(peers,conn.RemotePeer())
 		peers[conn.RemotePeer().Pretty()] = conn.RemotePeer()
+		log.Debug("FetchConnPeers", "ssssstream Num", len(conn.GetStreams()), "pid", conn.RemotePeer().Pretty())
 	}
 
 	if len(peers) < MinBounds {
