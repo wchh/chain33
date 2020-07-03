@@ -8,12 +8,6 @@ package dht
 import (
 	"context"
 	"fmt"
-	"sync"
-	"sync/atomic"
-	"time"
-
-	core "github.com/libp2p/go-libp2p-core"
-
 	"github.com/33cn/chain33/client"
 	logger "github.com/33cn/chain33/common/log/log15"
 	"github.com/33cn/chain33/p2p"
@@ -29,9 +23,16 @@ import (
 	"github.com/libp2p/go-libp2p"
 	circuit "github.com/libp2p/go-libp2p-circuit"
 	connmgr "github.com/libp2p/go-libp2p-connmgr"
+	core "github.com/libp2p/go-libp2p-core"
 	p2pcrypto "github.com/libp2p/go-libp2p-core/crypto"
+	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/metrics"
+	"github.com/libp2p/go-libp2p-core/routing"
+	dht "github.com/libp2p/go-libp2p-kad-dht"
 	"github.com/multiformats/go-multiaddr"
+	"sync"
+	"sync/atomic"
+	"time"
 )
 
 var log = logger.New("module", p2pty.DHTTypeName)
@@ -51,15 +52,15 @@ type P2P struct {
 	client        queue.Client
 	addrbook      *AddrBook
 	taskGroup     *sync.WaitGroup
-
-	pubsub  *net.PubSub
-	closed  int32
-	p2pCfg  *types.P2P
-	subCfg  *p2pty.P2PSubConfig
-	mgr     *p2p.Manager
-	subChan chan interface{}
-	ctx     context.Context
-	cancel  context.CancelFunc
+	kadDht        *dht.IpfsDHT
+	pubsub        *net.PubSub
+	closed        int32
+	p2pCfg        *types.P2P
+	subCfg        *p2pty.P2PSubConfig
+	mgr           *p2p.Manager
+	subChan       chan interface{}
+	ctx           context.Context
+	cancel        context.CancelFunc
 
 	db  ds.Datastore
 	env *protocol.P2PEnv
@@ -86,10 +87,8 @@ func New(mgr *p2p.Manager, subCfg []byte) p2p.IP2P {
 		panic(err)
 	}
 	log.Info("NewMulti", "addr", maddr.String())
-	host := newHost(mcfg, priv, bandwidthTracker, maddr)
 
 	p2p := &P2P{
-		host:          host,
 		peerInfoManag: manage.NewPeerInfoManager(mgr.Client),
 		chainCfg:      chainCfg,
 		subCfg:        mcfg,
@@ -102,9 +101,9 @@ func New(mgr *p2p.Manager, subCfg []byte) p2p.IP2P {
 		db:            store.NewDataStore(mcfg),
 	}
 	p2p.ctx, p2p.cancel = context.WithCancel(context.Background())
-
+	p2p.newHost(priv, bandwidthTracker, maddr)
 	p2p.subChan = p2p.mgr.PubSub.Sub(p2pty.DHTTypeName)
-	p2p.discovery = net.InitDhtDiscovery(p2p.ctx, p2p.host, p2p.addrbook.AddrsInfo(), p2p.chainCfg, p2p.subCfg)
+	p2p.discovery = net.InitDhtDiscovery(p2p.ctx, p2p.host, p2p.addrbook.AddrsInfo(), p2p.chainCfg, p2p.subCfg, p2p.kadDht)
 	p2p.connManag = manage.NewConnManager(p2p.host, p2p.discovery, bandwidthTracker, p2p.subCfg)
 
 	pubsub, err := net.NewPubSub(p2p.ctx, p2p.host)
@@ -118,26 +117,37 @@ func New(mgr *p2p.Manager, subCfg []byte) p2p.IP2P {
 	return p2p
 }
 
-func newHost(cfg *p2pty.P2PSubConfig, priv p2pcrypto.PrivKey, bandwidthTracker metrics.Reporter, maddr multiaddr.Multiaddr) core.Host {
+func (p *P2P) newHost(priv p2pcrypto.PrivKey, bandwidthTracker metrics.Reporter, maddr multiaddr.Multiaddr) core.Host {
 	if bandwidthTracker == nil {
 		bandwidthTracker = metrics.NewBandwidthCounter()
 	}
 
 	var relayOpt = make([]circuit.RelayOpt, 3)
-	if cfg.RelayActive {
+	if p.subCfg.RelayActive {
 		relayOpt = append(relayOpt, circuit.OptActive)
 	}
-	if cfg.RelayHop {
+	if p.subCfg.RelayHop {
 		relayOpt = append(relayOpt, circuit.OptHop)
 	}
-	if cfg.RelayDiscovery {
+	if p.subCfg.RelayDiscovery {
 		relayOpt = append(relayOpt, circuit.OptDiscovery)
 	}
 
 	var options []libp2p.Option
+
+	if p.subCfg.AutoRelay {
+
+		makeRouting := func(h host.Host) (routing.PeerRouting, error) {
+			kademliaDHT := net.NewDht(p.ctx, h, p.chainCfg, p.subCfg)
+			p.kadDht = kademliaDHT
+			return kademliaDHT, nil
+		}
+
+		options = append(options, libp2p.EnableRelay(), libp2p.EnableAutoRelay(), libp2p.Routing(makeRouting))
+	}
+
 	if len(relayOpt) != 0 {
 		options = append(options, libp2p.EnableRelay(relayOpt...))
-
 	}
 
 	options = append(options, libp2p.NATPortMap())
@@ -151,8 +161,8 @@ func newHost(cfg *p2pty.P2PSubConfig, priv p2pcrypto.PrivKey, bandwidthTracker m
 		options = append(options, libp2p.BandwidthReporter(bandwidthTracker))
 	}
 
-	if cfg.MaxConnectNum > 0 { //如果不设置最大连接数量，默认允许dht自由连接并填充路由表
-		var maxconnect = int(cfg.MaxConnectNum)
+	if p.subCfg.MaxConnectNum > 0 { //如果不设置最大连接数量，默认允许dht自由连接并填充路由表
+		var maxconnect = int(p.subCfg.MaxConnectNum)
 		options = append(options, libp2p.ConnectionManager(connmgr.NewConnManager(maxconnect*3/4, maxconnect, 0)))
 	}
 
@@ -160,7 +170,7 @@ func newHost(cfg *p2pty.P2PSubConfig, priv p2pcrypto.PrivKey, bandwidthTracker m
 	if err != nil {
 		panic(err)
 	}
-
+	p.host = host
 	return host
 }
 

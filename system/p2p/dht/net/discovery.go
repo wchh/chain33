@@ -35,23 +35,30 @@ type Discovery struct {
 	ctx              context.Context
 }
 
-func InitDhtDiscovery(ctx context.Context, host host.Host, peersInfo []peer.AddrInfo, chainCfg *types.Chain33Config, subCfg *p2pty.P2PSubConfig) *Discovery {
-
-	// Make the DHT,不同的ID进入不同的网络。
-	//如果不修改DHTProto 则有可能会连入IPFS网络，dhtproto=/ipfs/kad/1.0.0
-	d := new(Discovery)
+func NewDht(ctx context.Context, host host.Host, chainCfg *types.Chain33Config, subCfg *p2pty.P2PSubConfig) *dht.IpfsDHT {
 	opt := opts.Protocols(protocol.ID(fmt.Sprintf(DhtProtoID, chainCfg.GetTitle(), subCfg.Channel)))
 	kademliaDHT, err := dht.New(ctx, host, opt)
 	if err != nil {
 		panic(err)
 	}
-	d.kademliaDHT = kademliaDHT
+	return kademliaDHT
+}
+func InitDhtDiscovery(ctx context.Context, host host.Host, peersInfo []peer.AddrInfo, chainCfg *types.Chain33Config, subCfg *p2pty.P2PSubConfig, kadht *dht.IpfsDHT) *Discovery {
+
+	// Make the DHT,不同的ID进入不同的网络。
+	//如果不修改DHTProto 则有可能会连入IPFS网络，dhtproto=/ipfs/kad/1.0.0
+	d := new(Discovery)
 	d.ctx = ctx
+	d.kademliaDHT = kadht
+	if d.kademliaDHT == nil {
+		d.kademliaDHT = NewDht(ctx, host, chainCfg, subCfg)
+	}
+
 	//连接内置种子，以及addrbook存储的节点
 	initInnerPeers(host, peersInfo, subCfg)
 	// Bootstrap the DHT. In the default configuration, this spawns a Background
 	// thread that will refresh the peer table every five minutes.
-	if err = d.kademliaDHT.Bootstrap(ctx); err != nil {
+	if err := d.kademliaDHT.Bootstrap(ctx); err != nil {
 		panic(err)
 	}
 	d.routingDiscovery = discovery.NewRoutingDiscovery(d.kademliaDHT)

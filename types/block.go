@@ -6,6 +6,7 @@ package types
 
 import (
 	"bytes"
+	log "github.com/33cn/chain33/common/log/log15"
 	"runtime"
 	"sync"
 
@@ -129,7 +130,11 @@ type result struct {
 }
 
 func check(data *Transaction) bool {
-	return data.CheckSign()
+	ok := data.CheckSign()
+	if !ok {
+		log.Error("checkSign", "hexRawTx", common.ToHex(Encode(data)), "txhash", common.ToHex(data.Hash()))
+	}
+	return ok
 }
 
 func checksign(done <-chan struct{}, taskes <-chan *Transaction, c chan<- result) {

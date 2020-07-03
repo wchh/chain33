@@ -180,7 +180,10 @@ func testStreamEOFReSet(t *testing.T) {
 	if err != nil {
 		panic(err)
 	}
-	h1 := newHost(&subcfg, prvKey1, nil, maddr)
+	p1 := &P2P{}
+	p1.ctx, p1.cancel = context.WithCancel(context.Background())
+	p1.subCfg = &subcfg
+	h1 := p1.newHost(prvKey1, nil, maddr)
 	//-------------------------
 	var subcfg2 p2pty.P2PSubConfig
 	subcfg2.Port = 12346
@@ -188,7 +191,11 @@ func testStreamEOFReSet(t *testing.T) {
 	if err != nil {
 		panic(err)
 	}
-	h2 := newHost(&subcfg2, prvKey2, nil, maddr)
+
+	p2 := &P2P{}
+	p2.ctx, p2.cancel = context.WithCancel(context.Background())
+	p2.subCfg = &subcfg2
+	h2 := p2.newHost(prvKey2, nil, maddr)
 
 	//-------------------------------------
 	var subcfg3 p2pty.P2PSubConfig
@@ -198,7 +205,11 @@ func testStreamEOFReSet(t *testing.T) {
 	if err != nil {
 		panic(err)
 	}
-	h3 := newHost(&subcfg3, prvKey3, nil, maddr)
+	p3 := &P2P{}
+	p3.ctx, p3.cancel = context.WithCancel(context.Background())
+	p3.subCfg = &subcfg3
+
+	h3 := p3.newHost(prvKey3, nil, maddr)
 	h1.SetStreamHandler(protocol.ID(msgID), func(s core.Stream) {
 		t.Log("Meow! It worked!")
 		var buf []byte
@@ -288,12 +299,18 @@ func testHost(t *testing.T) {
 	mcfg.RelayActive = true
 	mcfg.RelayDiscovery = true
 	mcfg.RelayHop = true
+	mcfg.AutoRelay = false
 	mcfg.MaxConnectNum = 10000
-	host := newHost(mcfg, cpriv, nil, maddr)
+	p1 := &P2P{}
+	p1.ctx, p1.cancel = context.WithCancel(context.Background())
+	p1.subCfg = mcfg
+
+	host := p1.newHost(cpriv, nil, maddr)
 	hpub := host.Peerstore().PubKey(host.ID())
 	hpb, err := hpub.Bytes()
 	assert.Nil(t, err)
 	assert.Equal(t, hpb, pub)
+	t.Log("hostAddrs", host.Addrs())
 	host.Close()
 }
 

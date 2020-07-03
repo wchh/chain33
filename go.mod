@@ -17,6 +17,7 @@ require (
 	github.com/google/uuid v1.1.1
 	github.com/hashicorp/golang-lru v0.5.4
 	github.com/influxdata/influxdb v1.7.9
+	github.com/ipfs/go-cid v0.0.3
 	github.com/ipfs/go-datastore v0.1.0
 	github.com/libp2p/go-libp2p v0.4.0
 	github.com/libp2p/go-libp2p-blankhost v0.1.4

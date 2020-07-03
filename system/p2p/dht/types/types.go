@@ -27,6 +27,10 @@ type P2PSubConfig struct {
 	//轻广播本地区块缓存大小, 单位M
 	LtBlockCacheSize int32 `protobuf:"varint,9,opt,name=ltBlockCacheSize" json:"ltBlockCacheSize,omitempty"`
 
+	DHTDataDriver string `protobuf:"bytes,10,opt,name=DHTDataDriver" json:"DHTDataDriver,omitempty"`
+	DHTDataPath   string `protobuf:"bytes,11,opt,name=DHTDataPath" json:"DHTDataPath,omitempty"`
+	DHTDataCache  int32  `protobuf:"varint,12,opt,name=DHTDataCache" json:"DHTDataCache,omitempty"`
+
 	//中继传输主动建立连接，中继服务端可以选配
 	/*
 
@@ -40,14 +44,12 @@ type P2PSubConfig struct {
 		    if  b just config RelayHop,a->b,b->c
 			a.DialPeer(b,c) will success
 	*/
-	RelayActive bool `protobuf:"varint,10,opt,name=relayActive" json:"relayActive,omitempty"`
-	//接受其他节点发过来的中继请求，中继服务端必须配置
-	RelayHop bool `protobuf:"varint,11,opt,name=relayHop" json:"relayHop,omitempty"`
+	//自动中继服务，如果RelayOp=true 则不会启动autoRelay,主要用于需要中继服务的节点上，比如局域网内的节点
+	AutoRelay   bool `protobuf:"varint,13,opt,name=autoRelay" json:"autoRelay,omitempty"`
+	RelayActive bool `protobuf:"varint,14,opt,name=relayActive" json:"relayActive,omitempty"`
+	//接受其他节点发过来的中继请求，中继服务端必须配置，运行在公网IP上节点，配置此项，表示提供中继转发服务
+	RelayHop bool `protobuf:"varint,15,opt,name=relayHop" json:"relayHop,omitempty"`
 	//发现新的中继节点，中继客户端端必须配置
-	RelayDiscovery      bool `protobuf:"varint,12,opt,name=relayDiscovery" json:"relayDiscovery,omitempty"`
-	DisableFindLANPeers bool `protobuf:"varint,13,opt,name=disableFindLANPeers" json:"disableFindLANPeers,omitempty"`
-
-	DHTDataDriver string `protobuf:"bytes,14,opt,name=DHTDataDriver" json:"DHTDataDriver,omitempty"`
-	DHTDataPath   string `protobuf:"bytes,15,opt,name=DHTDataPath" json:"DHTDataPath,omitempty"`
-	DHTDataCache  int32  `protobuf:"varint,16,opt,name=DHTDataCache" json:"DHTDataCache,omitempty"`
+	RelayDiscovery      bool `protobuf:"varint,16,opt,name=relayDiscovery" json:"relayDiscovery,omitempty"`
+	DisableFindLANPeers bool `protobuf:"varint,17,opt,name=disableFindLANPeers" json:"disableFindLANPeers,omitempty"`
 }

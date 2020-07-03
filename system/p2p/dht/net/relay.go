@@ -2,8 +2,6 @@ package net
 
 import (
 	"context"
-	"time"
-
 	circuit "github.com/libp2p/go-libp2p-circuit"
 	coredis "github.com/libp2p/go-libp2p-core/discovery"
 	host "github.com/libp2p/go-libp2p-core/host"
@@ -12,6 +10,7 @@ import (
 	swarm "github.com/libp2p/go-libp2p-swarm"
 	swarmt "github.com/libp2p/go-libp2p-swarm/testing"
 	relay "github.com/libp2p/go-libp2p/p2p/host/relay"
+	"time"
 )
 
 type Relay struct {
@@ -25,6 +24,7 @@ func newRelay(ctx context.Context, host host.Host, opts ...circuit.RelayOpt) (*c
 		return nil, err
 	}
 	return r, nil
+
 }
 
 func NewRelayDiscovery(host host.Host, adv *discovery.RoutingDiscovery, opts ...circuit.RelayOpt) *Relay {
@@ -47,6 +47,7 @@ func (r *Relay) Advertise(ctx context.Context) {
 func (r *Relay) FindOpPeers() ([]peer.AddrInfo, error) {
 	dctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
+
 	return discovery.FindPeers(dctx, r.advertise, relay.RelayRendezvous, coredis.Limit(100))
 }
 
