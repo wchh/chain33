@@ -59,6 +59,7 @@ func (p *peerInfoProtol) checkRemotePeerExternalAddr(remoteMAddr string) bool {
 func (p *peerInfoProtol) onVersionReq(req *types.MessageP2PVersionReq, s core.Stream) {
 
 	remoteMAddr := s.Conn().RemoteMultiaddr()
+	log.Info("onVersionReq", "remoteMAddr", remoteMAddr.String())
 	if !p.checkRemotePeerExternalAddr(remoteMAddr.String()) {
 		var err error
 		remoteMAddr, err = multiaddr.NewMultiaddr(req.GetMessage().GetAddrFrom())

@@ -44,6 +44,7 @@ func TestEd25519PrivPub(t *testing.T) {
 	assert.Equal(t, hex.EncodeToString(pub), ed25519Pub)
 
 	//test address
+	pub, _ = hex.DecodeString("363aaa69769101253cf745e63e7e489454fa9dc691ec6c8bc3180eabca4651a3")
 	addr, err := PubToAddress(pub)
 	assert.Nil(t, err)
 	assert.Equal(t, addr, ed25519Addr)

@@ -200,7 +200,7 @@ func (base *BaseProtocol) QueryModule(module string, msgTy int64, req interface{
 
 	client := base.GetQueueClient()
 	msg := client.NewMessage(module, msgTy, req)
-	err := client.Send(msg, true)
+	err := client.Send(msg, false)
 	if err != nil {
 		return nil, err
 	}

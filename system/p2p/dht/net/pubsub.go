@@ -37,13 +37,13 @@ type SubMsg struct {
 
 type subCallBack func(msg *SubMsg)
 
-func NewPubSub(ctx context.Context, host host.Host) (*PubSub, error) {
+func NewPubSub(ctx context.Context, host host.Host, disc *Discovery) (*PubSub, error) {
 	p := &PubSub{
 		ps:     nil,
 		topics: make(TopicMap),
 	}
 	//选择使用GossipSub
-	ps, err := pubsub.NewGossipSub(ctx, host)
+	ps, err := pubsub.NewGossipSub(ctx, host, pubsub.WithDiscovery(disc.routingDiscovery))
 	if err != nil {
 		return nil, err
 	}
@@ -122,7 +122,7 @@ func (p *PubSub) subTopic(ctx context.Context, sub *pubsub.Subscription, callbac
 				p.RemoveTopic(topic)
 				return
 			}
-			log.Debug("SubMsg", "readData size", len(got.GetData()), "from", got.GetFrom().String(), "recieveFrom", got.ReceivedFrom.Pretty(), "topic", topic)
+			log.Debug("SubMsg", "readData size", len(got.GetData()), "from", got.GetFrom().String(), "recieveFrom", got.ReceivedFrom.Pretty(), "topic", topic, "peerlist", p.FetchTopicPeers())
 			var data SubMsg
 			data.Data = got.GetData()
 			data.Topic = topic

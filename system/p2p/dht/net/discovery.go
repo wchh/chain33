@@ -29,7 +29,7 @@ var (
 const DhtProtoID = "/ipfs/kad/%s/1.0.0/%d"
 
 type Discovery struct {
-	kademliaDHT      *dht.IpfsDHT
+	*dht.IpfsDHT
 	routingDiscovery *discovery.RoutingDiscovery
 	mdnsService      *mdns
 	ctx              context.Context
@@ -41,27 +41,30 @@ func NewDht(ctx context.Context, host host.Host, chainCfg *types.Chain33Config, 
 	if err != nil {
 		panic(err)
 	}
+
 	return kademliaDHT
+
 }
+
 func InitDhtDiscovery(ctx context.Context, host host.Host, peersInfo []peer.AddrInfo, chainCfg *types.Chain33Config, subCfg *p2pty.P2PSubConfig, kadht *dht.IpfsDHT) *Discovery {
 
 	// Make the DHT,不同的ID进入不同的网络。
 	//如果不修改DHTProto 则有可能会连入IPFS网络，dhtproto=/ipfs/kad/1.0.0
 	d := new(Discovery)
 	d.ctx = ctx
-	d.kademliaDHT = kadht
-	if d.kademliaDHT == nil {
-		d.kademliaDHT = NewDht(ctx, host, chainCfg, subCfg)
+	d.IpfsDHT = kadht
+	if d.IpfsDHT == nil {
+		d.IpfsDHT = NewDht(ctx, host, chainCfg, subCfg)
 	}
 
 	//连接内置种子，以及addrbook存储的节点
 	initInnerPeers(host, peersInfo, subCfg)
 	// Bootstrap the DHT. In the default configuration, this spawns a Background
 	// thread that will refresh the peer table every five minutes.
-	if err := d.kademliaDHT.Bootstrap(ctx); err != nil {
+	if err := d.IpfsDHT.Bootstrap(ctx); err != nil {
 		panic(err)
 	}
-	d.routingDiscovery = discovery.NewRoutingDiscovery(d.kademliaDHT)
+	d.routingDiscovery = discovery.NewRoutingDiscovery(d.IpfsDHT)
 	return d
 }
 
@@ -102,30 +105,30 @@ func (d *Discovery) CloseFindLANPeers() {
 
 //routingTable 路由表的节点信息
 func (d *Discovery) ListPeers() []peer.ID {
-	if d.kademliaDHT == nil {
+	if d.IpfsDHT == nil {
 		return nil
 	}
-	return d.kademliaDHT.RoutingTable().ListPeers()
+	return d.RoutingTable().ListPeers()
 }
 
 //routingTable size
 func (d *Discovery) RoutingTableSize() int {
-	if d.kademliaDHT == nil {
+	if d.IpfsDHT == nil {
 		return 0
 	}
-	return d.kademliaDHT.RoutingTable().Size()
+	return d.RoutingTable().Size()
 }
 
 //根据指定的peerID ,查找指定的peer,
-func (d *Discovery) FindSpecialPeer(pid peer.ID) (*peer.AddrInfo, error) {
-	if d.kademliaDHT == nil {
+func (d *Discovery) FindPeer(pid peer.ID) (*peer.AddrInfo, error) {
+	if d.IpfsDHT == nil {
 		return nil, errors.New("empty ptr")
 	}
 	ctx := context.Background()
 	pctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	peerInfo, err := d.kademliaDHT.FindPeer(pctx, pid)
+	peerInfo, err := d.IpfsDHT.FindPeer(pctx, pid)
 	if err != nil {
 		return nil, err
 	}
@@ -135,57 +138,23 @@ func (d *Discovery) FindSpecialPeer(pid peer.ID) (*peer.AddrInfo, error) {
 }
 
 //根据pid 查找当前DHT内部的peer信息
-func (d *Discovery) FindLocalPeer(pid peer.ID) peer.AddrInfo {
-	if d.kademliaDHT == nil {
-		return peer.AddrInfo{}
-	}
-	return d.kademliaDHT.FindLocal(pid)
-}
-
+//d.FindLocal(pid)
+//d.FindLocalPeers(pids)
 func (d *Discovery) FindLocalPeers(pids []peer.ID) []peer.AddrInfo {
 	var addrinfos []peer.AddrInfo
 	for _, pid := range pids {
-		addrinfos = append(addrinfos, d.FindLocalPeer(pid))
+		addrinfos = append(addrinfos, d.FindLocal(pid))
 	}
 	return addrinfos
 }
 
 //获取连接指定的peerId的peers信息,查找连接PID=A的所有节点
-
-func (d *Discovery) FindPeersConnectedToPeer(pid peer.ID) (<-chan *peer.AddrInfo, error) {
-	if d.kademliaDHT == nil {
-		return nil, errors.New("empty ptr")
-
-	}
-
-	ctx := context.Background()
-	pctx, cancel := context.WithTimeout(ctx, 30*time.Second)
-	defer cancel()
-	return d.kademliaDHT.FindPeersConnectedToPeer(pctx, pid)
-
-}
-
-func (d *Discovery) Update(pid peer.ID) error {
-	_, err := d.kademliaDHT.RoutingTable().Update(pid)
-	return err
-}
+//d.FindPeersConnectedToPeer( pid)
 
 func (d *Discovery) FindNearestPeers(pid peer.ID, count int) []peer.ID {
-	if d.kademliaDHT == nil {
+	if d.IpfsDHT == nil {
 		return nil
 	}
 
-	return d.kademliaDHT.RoutingTable().NearestPeers(kbt.ConvertPeerID(pid), count)
-}
-
-func (d *Discovery) Remove(pid peer.ID) {
-	if d.kademliaDHT == nil {
-		return
-	}
-	d.kademliaDHT.RoutingTable().Remove(pid)
-
-}
-
-func (d *Discovery) RoutingTable() *kbt.RoutingTable {
-	return d.kademliaDHT.RoutingTable()
+	return d.RoutingTable().NearestPeers(kbt.ConvertPeerID(pid), count)
 }

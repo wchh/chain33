@@ -106,7 +106,7 @@ func New(mgr *p2p.Manager, subCfg []byte) p2p.IP2P {
 	p2p.discovery = net.InitDhtDiscovery(p2p.ctx, p2p.host, p2p.addrbook.AddrsInfo(), p2p.chainCfg, p2p.subCfg, p2p.kadDht)
 	p2p.connManag = manage.NewConnManager(p2p.host, p2p.discovery, bandwidthTracker, p2p.subCfg)
 
-	pubsub, err := net.NewPubSub(p2p.ctx, p2p.host)
+	pubsub, err := net.NewPubSub(p2p.ctx, p2p.host, p2p.discovery)
 	if err != nil {
 		return nil
 	}
@@ -154,6 +154,7 @@ func (p *P2P) newHost(priv p2pcrypto.PrivKey, bandwidthTracker metrics.Reporter,
 	if maddr != nil {
 		options = append(options, libp2p.ListenAddrs(maddr))
 	}
+
 	if priv != nil {
 		options = append(options, libp2p.Identity(priv))
 	}

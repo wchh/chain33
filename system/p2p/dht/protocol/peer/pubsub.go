@@ -87,6 +87,7 @@ func (p *peerPubSub) subCallBack(msg *net.SubMsg) {
 		client := p.GetQueueClient()
 		newmsg := client.NewMessage(moudleName, types.EventReceiveSubData, &types.TopicData{Topic: msg.Topic, From: msg.From, Data: msg.Data}) //加入到输出通道)
 		client.Send(newmsg, false)
+
 	}
 }
 

@@ -145,12 +145,12 @@ func (s *ConnManager) IsNeighbors(pid peer.ID) bool {
 }
 
 func (s *ConnManager) Delete(pid peer.ID) {
-	s.discovery.Remove(pid)
+	s.discovery.RoutingTable().Remove(pid)
 }
 
 func (s *ConnManager) Get(pid peer.ID) *peer.AddrInfo {
 
-	peerinfo := s.discovery.FindLocalPeer(pid)
+	peerinfo := s.discovery.FindLocal(pid)
 	return &peerinfo
 }
 
