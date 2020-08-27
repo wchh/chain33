@@ -327,15 +327,17 @@ func (p *P2P) waitTaskDone() {
 func (p *P2P) genAirDropKey() {
 
 	for { //等待钱包创建，解锁
+
 		select {
 		case <-p.ctx.Done():
 			log.Info("genAirDropKey", "p2p closed")
 			return
 		case <-time.After(time.Second):
-
+			if p.p2pCfg.WaitPid { //是否是WaitPid
+				continue
+			}
 			resp, err := p.api.ExecWalletFunc("wallet", "GetWalletStatus", &types.ReqNil{})
 			if err != nil {
-				time.Sleep(time.Second)
 				continue
 			}
 			if resp.(*types.WalletStatus).GetIsWalletLock() { //上锁状态，无法用助记词创建空投地址,等待...

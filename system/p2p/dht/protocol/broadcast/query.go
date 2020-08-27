@@ -7,6 +7,7 @@ package broadcast
 import (
 	"bytes"
 	"encoding/hex"
+	core "github.com/libp2p/go-libp2p-core"
 
 	"github.com/33cn/chain33/common"
 	"github.com/33cn/chain33/common/merkle"
@@ -26,13 +27,13 @@ func (protocol *broadCastProtocol) sendQueryReply(rep *types.P2PBlockTxReply, p2
 	return true
 }
 
-func (protocol *broadCastProtocol) recvQueryData(query *types.P2PQueryData, pid peer.ID, peerAddr string) error {
+func (protocol *broadCastProtocol) recvQueryData(query *types.P2PQueryData, stream core.Stream, pid peer.ID) error {
 
 	var reply interface{}
 	if txReq := query.GetTxReq(); txReq != nil {
 
 		txHash := hex.EncodeToString(txReq.TxHash)
-		log.Debug("recvQueryTx", "txHash", txHash, "pid", pid.Pretty())
+		log.Debug("recvQueryTx", "txHash", txHash, "pid", pid)
 		//向mempool请求交易
 		resp, err := protocol.QueryMempool(types.EventTxListByHash, &types.ReqTxHashList{Hashes: []string{string(txReq.TxHash)}})
 		if err != nil {
@@ -81,18 +82,21 @@ func (protocol *broadCastProtocol) recvQueryData(query *types.P2PQueryData, pid 
 	}
 
 	if reply != nil {
-		_, err := protocol.sendPeer(pid, reply, false)
+		if stream == nil {
+			return errSendStream
+		}
+		_, err := protocol.sendPeer(stream, reply)
 		if err != nil {
-			log.Error("recvQueryData", "pid", pid, "addr", peerAddr, "err", err)
+			log.Error("recvQueryData", "pid", pid, "addr", stream.Conn().RemoteMultiaddr(), "err", err)
 			return errSendStream
 		}
 	}
 	return nil
 }
 
-func (protocol *broadCastProtocol) recvQueryReply(rep *types.P2PBlockTxReply, pid peer.ID, peerAddr string) (err error) {
+func (protocol *broadCastProtocol) recvQueryReply(rep *types.P2PBlockTxReply, stream core.Stream, pid peer.ID) (err error) {
 
-	log.Debug("recvQueryReply", "hash", rep.BlockHash, "queryTxsCount", len(rep.GetTxIndices()), "pid", pid.Pretty())
+	log.Debug("recvQueryReply", "hash", rep.BlockHash, "queryTxsCount", len(rep.GetTxIndices()), "pid", pid)
 	val, exist := protocol.ltBlockCache.Remove(rep.BlockHash)
 	block, _ := val.(*types.Block)
 	//not exist in cache or nil block
@@ -139,9 +143,12 @@ func (protocol *broadCastProtocol) recvQueryReply(rep *types.P2PBlockTxReply, pi
 	block.Txs = nil
 	protocol.ltBlockCache.Add(rep.BlockHash, block, block.Size())
 	//query peer
-	_, err = protocol.sendPeer(pid, query, false)
+	if stream == nil {
+		return errSendStream
+	}
+	_, err = protocol.sendPeer(stream, query)
 	if err != nil {
-		log.Error("recvQueryReply", "pid", pid, "addr", peerAddr, "err", err)
+		log.Error("recvQueryReply", "pid", stream.Conn().RemotePeer(), "err", err)
 		protocol.ltBlockCache.Remove(rep.BlockHash)
 		protocol.blockFilter.Remove(rep.BlockHash)
 		return errSendStream

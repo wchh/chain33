@@ -7,6 +7,8 @@ package broadcast
 
 import (
 	"encoding/hex"
+	"sync"
+	"time"
 
 	"github.com/33cn/chain33/p2p/utils"
 
@@ -43,6 +45,8 @@ type broadCastProtocol struct {
 	blockSendFilter *utils.Filterdata
 	ltBlockCache    *utils.SpaceLimitCache
 	p2pCfg          *p2pty.P2PSubConfig
+	storeStream     sync.Map
+	destroyStream   chan core.Stream
 }
 
 // InitProtocol init protocol
@@ -82,6 +86,52 @@ func (protocol *broadCastProtocol) InitProtocol(env *prototypes.P2PEnv) {
 	//内部组装成功失败或成功都会进行清理，实际运行并不会长期占用内存，只要限制极端情况最大值
 	protocol.ltBlockCache = utils.NewSpaceLimitCache(ltBlockCacheNum, int(subCfg.LtBlockCacheSize*1024*1024))
 	protocol.p2pCfg = &subCfg
+	//获取连接的节点信息，每个peer一个stream
+	protocol.destroyStream = make(chan core.Stream, 256)
+	go protocol.streamBalancer()
+}
+
+func (protocol *broadCastProtocol) streamBalancer() {
+	fetchConnTickert := time.NewTicker(time.Second * 2)
+
+	for {
+
+		select {
+		case <-fetchConnTickert.C:
+			//check avilable stream num
+			var avilableStreamNum int
+			protocol.storeStream.Range(func(k, v interface{}) bool {
+				avilableStreamNum++
+				return true
+			})
+			if avilableStreamNum > 50 { //限定最大50个stream
+				break
+			}
+
+			pds := protocol.GetConnsManager().FetchConnPeers()
+			for _, peer := range pds {
+				if _, ok := protocol.storeStream.Load(peer.Pretty()); ok {
+					continue
+				}
+				stream, err := prototypes.NewStream(protocol.Host, peer, []core.ProtocolID{broadcastID})
+				if err != nil {
+					log.Error("sendPeer", "id", peer.Pretty(), "NewStreamErr", err)
+					continue
+				}
+				protocol.storeStream.Store(peer.Pretty(), stream)
+			}
+
+		case destroyStream := <-protocol.destroyStream:
+			protocol.storeStream.Delete(destroyStream.Conn().RemotePeer().Pretty())
+			prototypes.CloseStream(destroyStream)
+
+		case <-protocol.Ctx.Done():
+			fetchConnTickert.Stop()
+			return
+		}
+
+	}
+
 }
 
 type broadCastHandler struct {
@@ -101,7 +151,7 @@ func (handler *broadCastHandler) Handle(stream core.Stream) {
 		return
 	}
 
-	_ = protocol.handleReceive(data.Message, pid, peerAddr)
+	_ = protocol.handleReceive(data.Message, stream, stream.Conn().RemotePeer())
 }
 
 // SetProtocol set protocol
@@ -143,33 +193,24 @@ func (protocol *broadCastProtocol) handleEvent(msg *queue.Message) {
 }
 
 func (protocol *broadCastProtocol) broadcast(data interface{}) {
-
-	pds := protocol.GetConnsManager().FetchConnPeers()
-	//log.Debug("broadcast", "peerNum", len(pds))
-	openedStreams := make([]core.Stream, 0)
-	for _, pid := range pds {
-
-		stream, err := protocol.sendPeer(pid, data, true)
-		if err != nil {
-			log.Error("broadcast", "send peer err", err)
+	protocol.storeStream.Range(func(k, v interface{}) bool {
+		if stream, ok := v.(core.Stream); ok {
+			_, err := protocol.sendPeer(stream, data)
+			if err != nil {
+				protocol.destroyStream <- stream
+			}
 		}
-		if stream != nil {
-			openedStreams = append(openedStreams, stream)
-		}
-	}
+		return true
+	})
 
-	// 广播发送数据结束后，统一关闭打开的stream
-	for _, stream := range openedStreams {
-		prototypes.CloseStream(stream)
-	}
 }
 
-// 发送广播数据到节点, 支持延迟关闭内部stream，主要考虑多个节点并行发送情况，不需要等待关闭
-func (protocol *broadCastProtocol) sendPeer(pid peer.ID, data interface{}, delayStreamClose bool) (core.Stream, error) {
+// 发送广播数据到节点
+func (protocol *broadCastProtocol) sendPeer(stream core.Stream, data interface{}) (core.Stream, error) {
 
 	//这里传peeraddr用pid替代不会影响，内部只做log记录， 暂时不更改代码
 	//TODO：增加peer addr获取渠道
-	sendData, doSend := protocol.handleSend(data, pid, pid.Pretty())
+	sendData, doSend := protocol.handleSend(data, stream.Conn().RemotePeer())
 	if !doSend {
 		return nil, nil
 	}
@@ -177,25 +218,16 @@ func (protocol *broadCastProtocol) sendPeer(pid peer.ID, data interface{}, delay
 	broadData := &types.MessageBroadCast{
 		Message: sendData}
 
-	stream, err := prototypes.NewStream(protocol.Host, pid, []core.ProtocolID{broadcastID})
+	err := prototypes.WriteStream(broadData, stream)
 	if err != nil {
-		log.Error("sendPeer", "id", pid.Pretty(), "NewStreamErr", err)
-		return nil, err
+		log.Error("sendPeer", "pid", stream.Conn().RemotePeer().Pretty(), "WriteStream err", err)
 	}
 
-	err = prototypes.WriteStream(broadData, stream)
-	if err != nil {
-		log.Error("sendPeer", "pid", pid.Pretty(), "WriteStream err", err)
-	}
-	if !delayStreamClose {
-		prototypes.CloseStream(stream)
-		stream = nil
-	}
 	return stream, err
 }
 
 // handleSend 对数据进行处理，包装成BroadCast结构
-func (protocol *broadCastProtocol) handleSend(rawData interface{}, pid peer.ID, peerAddr string) (sendData *types.BroadCastData, doSend bool) {
+func (protocol *broadCastProtocol) handleSend(rawData interface{}, pid peer.ID) (sendData *types.BroadCastData, doSend bool) {
 	//出错处理
 	defer func() {
 		if r := recover(); r != nil {
@@ -207,13 +239,13 @@ func (protocol *broadCastProtocol) handleSend(rawData interface{}, pid peer.ID, 
 
 	doSend = false
 	if tx, ok := rawData.(*types.P2PTx); ok {
-		doSend = protocol.sendTx(tx, sendData, pid, peerAddr)
+		doSend = protocol.sendTx(tx, sendData, pid)
 	} else if blc, ok := rawData.(*types.P2PBlock); ok {
-		doSend = protocol.sendBlock(blc, sendData, pid, peerAddr)
+		doSend = protocol.sendBlock(blc, sendData, pid)
 	} else if query, ok := rawData.(*types.P2PQueryData); ok {
-		doSend = protocol.sendQueryData(query, sendData, peerAddr)
+		doSend = protocol.sendQueryData(query, sendData, pid.Pretty())
 	} else if rep, ok := rawData.(*types.P2PBlockTxReply); ok {
-		doSend = protocol.sendQueryReply(rep, sendData, peerAddr)
+		doSend = protocol.sendQueryReply(rep, sendData, pid.Pretty())
 	} else if ping, ok := rawData.(*types.P2PPing); ok {
 		doSend = true
 		sendData.Value = &types.BroadCastData_Ping{Ping: ping}
@@ -221,29 +253,29 @@ func (protocol *broadCastProtocol) handleSend(rawData interface{}, pid peer.ID, 
 	return
 }
 
-func (protocol *broadCastProtocol) handleReceive(data *types.BroadCastData, pid peer.ID, peerAddr string) (err error) {
+func (protocol *broadCastProtocol) handleReceive(data *types.BroadCastData, stream core.Stream, pid peer.ID) (err error) {
 
 	//接收网络数据不可靠
 	defer func() {
 		if r := recover(); r != nil {
-			log.Error("handleReceive_Panic", "recvData", data, "pid", pid, "addr", peerAddr, "recoverErr", r)
+			log.Error("handleReceive_Panic", "recvData", data, "pid", pid, "peerAddr", stream.Conn().RemoteMultiaddr().String(), "recoverErr", r)
 		}
 	}()
 	if tx := data.GetTx(); tx != nil {
-		err = protocol.recvTx(tx, pid, peerAddr)
+		err = protocol.recvTx(tx, pid)
 	} else if ltTx := data.GetLtTx(); ltTx != nil {
-		err = protocol.recvLtTx(ltTx, pid, peerAddr)
+		err = protocol.recvLtTx(ltTx, stream, pid)
 	} else if ltBlc := data.GetLtBlock(); ltBlc != nil {
-		err = protocol.recvLtBlock(ltBlc, pid, peerAddr)
+		err = protocol.recvLtBlock(ltBlc, stream, pid)
 	} else if blc := data.GetBlock(); blc != nil {
-		err = protocol.recvBlock(blc, pid, peerAddr)
+		err = protocol.recvBlock(blc, pid)
 	} else if query := data.GetQuery(); query != nil {
-		err = protocol.recvQueryData(query, pid, peerAddr)
+		err = protocol.recvQueryData(query, stream, pid)
 	} else if rep := data.GetBlockRep(); rep != nil {
-		err = protocol.recvQueryReply(rep, pid, peerAddr)
+		err = protocol.recvQueryReply(rep, stream, pid)
 	}
 	if err != nil {
-		log.Error("handleReceive", "pid", pid, "addr", peerAddr, "recvData", data.Value, "err", err)
+		log.Error("handleReceive", "pid", pid.Pretty(), "recvData", data.Value, "err", err)
 	}
 	return
 }

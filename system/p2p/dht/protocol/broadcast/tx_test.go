@@ -19,16 +19,16 @@ func Test_sendTx(t *testing.T) {
 	proto.p2pCfg.MaxTTL = 3
 	route := &types.P2PRoute{}
 	tx := &types.P2PTx{Tx: tx, Route: route}
-	_, ok := proto.handleSend(tx, testPid, testAddr)
+	_, ok := proto.handleSend(tx, testPid)
 	assert.True(t, ok)
-	_, ok = proto.handleSend(tx, testPid, testAddr)
+	_, ok = proto.handleSend(tx, testPid)
 	assert.False(t, ok)
 	route.TTL = 4
-	_, ok = proto.handleSend(tx, testPid, testAddr)
+	_, ok = proto.handleSend(tx, testPid)
 	assert.False(t, ok)
 	route.TTL = 1
 	tx.Tx = tx1
-	_, ok = proto.handleSend(tx, testPid, testAddr)
+	_, ok = proto.handleSend(tx, testPid)
 	assert.True(t, ok)
 }
 
@@ -40,11 +40,11 @@ func Test_recvTx(t *testing.T) {
 
 	proto := newTestProtocolWithQueue(q)
 	tx := &types.P2PTx{Tx: tx}
-	sendData, _ := proto.handleSend(tx, testPid, testAddr)
+	sendData, _ := proto.handleSend(tx, testPid)
 
 	newCli := q.Client()
 	newCli.Sub("mempool")
-	err := proto.handleReceive(sendData, testPid, testAddr)
+	err := proto.handleReceive(sendData, nil, testPid)
 	assert.Nil(t, err)
 
 	msg := <-newCli.Recv()
@@ -60,11 +60,11 @@ func Test_recvLtTx(t *testing.T) {
 	proto := newTestProtocol()
 	proto.p2pCfg.LightTxTTL = 0
 	tx := &types.P2PTx{Tx: tx}
-	sendData, _ := proto.handleSend(tx, testPid, testAddr)
-	err := proto.handleReceive(sendData, testPid, testAddr)
-	assert.Nil(t, err)
+	sendData, _ := proto.handleSend(tx, testPid)
+	err := proto.handleReceive(sendData, nil, testPid)
+	assert.Equal(t, errSendStream, err)
 
 	proto.txFilter.Add(hex.EncodeToString(tx.Tx.Hash()), true)
-	err = proto.handleReceive(sendData, testPid, testAddr)
+	err = proto.handleReceive(sendData, nil, testPid)
 	assert.Equal(t, nil, err)
 }

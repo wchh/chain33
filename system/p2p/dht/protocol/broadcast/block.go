@@ -7,17 +7,18 @@ package broadcast
 import (
 	"bytes"
 	"encoding/hex"
+	core "github.com/libp2p/go-libp2p-core"
 
 	"github.com/33cn/chain33/common/merkle"
 	"github.com/33cn/chain33/types"
 	"github.com/libp2p/go-libp2p-core/peer"
 )
 
-func (protocol *broadCastProtocol) sendBlock(block *types.P2PBlock, p2pData *types.BroadCastData, pid peer.ID, peerAddr string) (doSend bool) {
+func (protocol *broadCastProtocol) sendBlock(block *types.P2PBlock, p2pData *types.BroadCastData, id peer.ID) (doSend bool) {
 	byteHash := block.Block.Hash(protocol.GetChainCfg())
 	blockHash := hex.EncodeToString(byteHash)
 	//检测冗余发送
-	if addIgnoreSendPeerAtomic(protocol.blockSendFilter, blockHash, pid) {
+	if addIgnoreSendPeerAtomic(protocol.blockSendFilter, blockHash, id) {
 		return false
 	}
 	blockSize := types.Size(block.Block)
@@ -43,7 +44,7 @@ func (protocol *broadCastProtocol) sendBlock(block *types.P2PBlock, p2pData *typ
 	return true
 }
 
-func (protocol *broadCastProtocol) recvBlock(block *types.P2PBlock, pid peer.ID, peerAddr string) error {
+func (protocol *broadCastProtocol) recvBlock(block *types.P2PBlock, pid peer.ID) error {
 
 	if block.GetBlock() == nil {
 		return types.ErrInvalidParam
@@ -64,7 +65,7 @@ func (protocol *broadCastProtocol) recvBlock(block *types.P2PBlock, pid peer.ID,
 	return nil
 }
 
-func (protocol *broadCastProtocol) recvLtBlock(ltBlock *types.LightBlock, pid peer.ID, peerAddr string) error {
+func (protocol *broadCastProtocol) recvLtBlock(ltBlock *types.LightBlock, stream core.Stream, pid peer.ID) error {
 
 	blockHash := hex.EncodeToString(ltBlock.Header.Hash)
 	//将节点id添加到发送过滤, 避免冗余发送
@@ -163,9 +164,12 @@ func (protocol *broadCastProtocol) recvLtBlock(ltBlock *types.LightBlock, pid pe
 	//需要将不完整的block预存
 	protocol.ltBlockCache.Add(blockHash, block, block.Size())
 	//pub to specified peer
-	_, err := protocol.sendPeer(pid, query, false)
+	if stream == nil {
+		return errSendStream
+	}
+	_, err := protocol.sendPeer(stream, query)
 	if err != nil {
-		log.Error("recvLtBlock", "pid", pid, "addr", peerAddr, "err", err)
+		log.Error("recvLtBlock", "pid", stream.Conn().RemotePeer(), "err", err)
 		protocol.blockFilter.Remove(blockHash)
 		protocol.ltBlockCache.Remove(blockHash)
 		return errSendStream

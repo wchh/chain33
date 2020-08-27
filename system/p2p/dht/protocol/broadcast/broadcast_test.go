@@ -5,18 +5,21 @@
 package broadcast
 
 import (
+	"context"
 	"encoding/hex"
-	"testing"
-
 	"github.com/33cn/chain33/client"
 	commlog "github.com/33cn/chain33/common/log"
 	"github.com/33cn/chain33/p2p"
 	"github.com/33cn/chain33/queue"
+	"github.com/33cn/chain33/system/p2p/dht/manage"
+	"github.com/33cn/chain33/system/p2p/dht/net"
 	prototypes "github.com/33cn/chain33/system/p2p/dht/protocol/types"
 	p2pty "github.com/33cn/chain33/system/p2p/dht/types"
 	"github.com/33cn/chain33/types"
+	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/stretchr/testify/assert"
+	"testing"
 )
 
 func init() {
@@ -51,6 +54,7 @@ func newTestEnv(q queue.Queue) *prototypes.P2PEnv {
 
 	subCfg := &p2pty.P2PSubConfig{}
 	types.MustDecode(cfg.GetSubConfig().P2P[p2pty.DHTTypeName], subCfg)
+
 	env := &prototypes.P2PEnv{
 		ChainCfg:        cfg,
 		QueueClient:     q.Client(),
@@ -60,7 +64,12 @@ func newTestEnv(q queue.Queue) *prototypes.P2PEnv {
 		Discovery:       nil,
 		P2PManager:      mgr,
 		SubConfig:       subCfg,
+		Ctx:             context.Background(),
 	}
+	host, _ := libp2p.New(context.Background())
+	env.Host = host
+	env.Discovery = net.InitDhtDiscovery(env.Ctx, host, nil, cfg, subCfg)
+	env.ConnManager = manage.NewConnManager(host, env.Discovery, nil, subCfg)
 	return env
 }
 

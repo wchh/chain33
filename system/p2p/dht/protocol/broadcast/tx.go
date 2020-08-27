@@ -6,20 +6,20 @@ package broadcast
 
 import (
 	"encoding/hex"
-
+	core "github.com/libp2p/go-libp2p-core"
 	"github.com/libp2p/go-libp2p-core/peer"
 
 	"github.com/33cn/chain33/types"
 )
 
-func (protocol *broadCastProtocol) sendTx(tx *types.P2PTx, p2pData *types.BroadCastData, pid peer.ID, peerAddr string) (doSend bool) {
+func (protocol *broadCastProtocol) sendTx(tx *types.P2PTx, p2pData *types.BroadCastData, id peer.ID) (doSend bool) {
 
 	txHash := hex.EncodeToString(tx.Tx.Hash())
 	ttl := tx.GetRoute().GetTTL()
 	isLightSend := ttl >= protocol.p2pCfg.LightTxTTL
 
 	//检测冗余发送, 短哈希广播不记录发送过滤, 已经发送或者接收过此Tx
-	if !isLightSend && addIgnoreSendPeerAtomic(protocol.txSendFilter, txHash, pid) {
+	if !isLightSend && addIgnoreSendPeerAtomic(protocol.txSendFilter, txHash, id) {
 		return false
 	}
 
@@ -43,7 +43,7 @@ func (protocol *broadCastProtocol) sendTx(tx *types.P2PTx, p2pData *types.BroadC
 	return true
 }
 
-func (protocol *broadCastProtocol) recvTx(tx *types.P2PTx, pid peer.ID, peerAddr string) (err error) {
+func (protocol *broadCastProtocol) recvTx(tx *types.P2PTx, pid peer.ID) (err error) {
 	if tx.GetTx() == nil {
 		return
 	}
@@ -64,7 +64,7 @@ func (protocol *broadCastProtocol) recvTx(tx *types.P2PTx, pid peer.ID, peerAddr
 
 }
 
-func (protocol *broadCastProtocol) recvLtTx(tx *types.LightTx, pid peer.ID, peerAddr string) (err error) {
+func (protocol *broadCastProtocol) recvLtTx(tx *types.LightTx, stream core.Stream, pid peer.ID) (err error) {
 
 	txHash := hex.EncodeToString(tx.TxHash)
 	//将节点id添加到发送过滤, 避免冗余发送
@@ -83,9 +83,12 @@ func (protocol *broadCastProtocol) recvLtTx(tx *types.LightTx, pid peer.ID, peer
 		},
 	}
 	//发布到指定的节点
-	_, err = protocol.sendPeer(pid, query, false)
+	if stream == nil {
+		return errSendStream
+	}
+	_, err = protocol.sendPeer(stream, query)
 	if err != nil {
-		log.Error("recvLtTx", "pid", pid, "addr", peerAddr, "err", err)
+		log.Error("recvLtTx", "pid", stream.Conn().RemotePeer(), "err", err)
 		return errSendStream
 	}
 

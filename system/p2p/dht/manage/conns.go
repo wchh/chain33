@@ -169,6 +169,19 @@ func (s *ConnManager) FetchNearestPeers() []peer.ID {
 	return s.discovery.FindNearestPeers(s.host.ID(), 50)
 }
 
+//FetchDhtPeers 从每个K桶中获取一个Peer
+func (s *ConnManager) FetchDhtPeers() []peer.ID {
+	var peerslist []peer.ID
+	allBuckets := s.discovery.RoutingTable().GetAllBuckets()
+	for i := 0; i < len(allBuckets); i++ {
+		peers := allBuckets[i].Peers()
+		if len(peers) != 0 {
+			peerslist = append(peerslist, peers[0])
+		}
+	}
+	return peerslist
+}
+
 // Size connections size
 func (s *ConnManager) Size() int {
 	return len(s.host.Network().Conns())
@@ -178,7 +191,7 @@ func (s *ConnManager) Size() int {
 func (s *ConnManager) FetchConnPeers() []peer.ID {
 	var peers = make(map[string]peer.ID)
 
-	nearpeers := s.FetchNearestPeers()
+	nearpeers := s.FetchDhtPeers()
 	for _, peer := range nearpeers {
 		if _, ok := peers[peer.Pretty()]; !ok {
 			peers[peer.Pretty()] = peer
