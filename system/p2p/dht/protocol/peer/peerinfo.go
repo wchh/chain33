@@ -188,7 +188,9 @@ func (p *peerInfoProtol) setExternalAddr(addr string) {
 	p.mutex.Lock()
 	defer p.mutex.Unlock()
 	if spliteAddr != p.externalAddr && isPublicIP(net.ParseIP(spliteAddr)) {
+
 		p.externalAddr = spliteAddr
+
 		//设置外部地址时同时保存到peerstore里
 		addr := fmt.Sprintf("/ip4/%s/tcp/%d", spliteAddr, p.SubConfig.Port)
 		ma, _ := multiaddr.NewMultiaddr(addr)
