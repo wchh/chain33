@@ -1,10 +1,11 @@
 package download
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"github.com/libp2p/go-libp2p-core/peer"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	//protobufCodec "github.com/multiformats/go-multicodec/protobuf"
@@ -34,15 +35,28 @@ const (
 	downloadBlockReq = "/chain33/downloadBlockReq/1.0.0"
 )
 
+type (
+	taskID  string
+	taskNum int64
+)
+
 //type Istream
 type downloadProtol struct {
 	*prototypes.BaseProtocol
+	taskChan  chan int64
+	blockMsg  chan *queue.Message
+	storeTask map[string]int64
+	locker    sync.Mutex
 }
 
 func (d *downloadProtol) InitProtocol(env *prototypes.P2PEnv) {
 	d.P2PEnv = env
 	//注册事件处理函数
 	prototypes.RegisterEventHandler(types.EventFetchBlocks, d.handleEvent)
+	d.taskChan = make(chan int64)
+	d.blockMsg = make(chan *queue.Message)
+	d.storeTask = make(map[string]int64)
+	go d.loopSendBlockMsg()
 
 }
 
@@ -139,131 +153,158 @@ func (d *downloadProtol) handleEvent(msg *queue.Message) {
 	}
 
 	msg.Reply(d.GetQueueClient().NewMessage("blockchain", types.EventReply, types.Reply{IsOk: true, Msg: []byte("ok")}))
-	var taskID = uuid.New().String() + "+" + fmt.Sprintf("%d-%d", req.GetStart(), req.GetEnd())
-
-	log.Debug("handleEvent", "taskID", taskID, "download start", req.GetStart(), "download end", req.GetEnd(), "pids", pids)
+	var tID = uuid.New().String() + "+" + fmt.Sprintf("%d-%d", req.GetStart(), req.GetEnd())
+	d.storeTask[tID] = req.GetEnd() - req.Start + 1
+	log.Debug("handleEvent", "taskID", tID, "download start", req.GetStart(), "download end", req.GetEnd(), "pids", pids)
 
 	//具体的下载逻辑
-	jobS := d.initJob(pids, taskID)
-	log.Debug("handleEvent", "jobs", jobS)
 	var wg sync.WaitGroup
-	var mutex sync.Mutex
-	var maxgoroutin int32
-	var reDownload = make(map[string]interface{})
-	var startTime = time.Now().UnixNano()
+	var since = time.Now().UnixNano()
 
-	for height := req.GetStart(); height <= req.GetEnd(); height++ {
-		wg.Add(1)
-	Wait:
-		if atomic.LoadInt32(&maxgoroutin) > 50 {
-			time.Sleep(time.Millisecond * 200)
-			goto Wait
-		}
-		atomic.AddInt32(&maxgoroutin, 1)
-		go func(blockheight int64, tasks tasks) {
-			err := d.downloadBlock(blockheight, tasks)
-			if err != nil {
-				mutex.Lock()
-				defer mutex.Unlock()
-
-				if err == d.Ctx.Err() {
-					log.Error("syncDownloadBlock", "err", err.Error())
-					return
-				}
-
-				log.Error("syncDownloadBlock", "downloadBlock err", err.Error())
-				v, ok := reDownload[taskID]
-				if ok {
-					faildJob := v.(map[int64]bool)
-					faildJob[blockheight] = false
-					reDownload[taskID] = faildJob
-
-				} else {
-					var faildJob = make(map[int64]bool)
-					faildJob[blockheight] = false
-					reDownload[taskID] = faildJob
-
-				}
-			}
+	//下发要下载的区块
+	go func(start, end int64) {
+		defer func() {
 			wg.Done()
-			atomic.AddInt32(&maxgoroutin, -1)
+		}()
+		wg.Add(1)
+		for blockheight := start; blockheight <= end; blockheight++ {
+			d.taskChan <- blockheight
+		}
+	}(req.GetStart(), req.GetEnd())
 
-		}(height, jobS)
-
+	//接收请求下载的区块
+	ctx, cancelDownloadProc := context.WithCancel(d.Ctx)
+	for _, pid := range pids { //以节点为单位，自由竞争下载区块
+		go func(pid string) {
+			d.processDownload(ctx, pid, tID)
+		}(pid)
 	}
 
 	wg.Wait()
-	d.checkTask(taskID, pids, reDownload)
-	log.Debug("Download Job Complete!", "TaskID++++++++++++++", taskID,
-		"cost time", fmt.Sprintf("cost time:%d ms", (time.Now().UnixNano()-startTime)/1e6),
+	d.waitTaskFinish(tID)
+	cancelDownloadProc()
+
+	log.Info("Download blocks Complete!", "TaskID++++++++++++++", tID,
+		"cost time", fmt.Sprintf("cost time:%d ms", (time.Now().UnixNano()-since)/1e6),
 		"from", pids)
 
 }
 
-func (d *downloadProtol) downloadBlock(blockheight int64, tasks tasks) error {
+func (d *downloadProtol) waitTaskFinish(taskID string) {
+	for {
+		d.locker.Lock()
+		if taskNum, ok := d.storeTask[taskID]; ok {
+			if taskNum <= 0 {
+				log.Info("all downloadprocee finish", "taskNum", taskNum)
+				//remove taskID
+				delete(d.storeTask, taskID)
+				d.locker.Unlock()
+				return
+			}
 
-	var retryCount uint
-	tasks.Sort() //对任务节点时延进行排序，优先选择时延低的节点进行下载
-ReDownload:
-	select {
-	case <-d.Ctx.Done():
-		log.Warn("downloadBlock", "process", "done")
-		return d.Ctx.Err()
-	default:
-		break
+		}
+		d.locker.Unlock()
+		time.Sleep(time.Millisecond * 300)
 	}
+}
 
-	if tasks.Size() == 0 {
-		return errors.New("no peer for download")
-	}
-
-	retryCount++
-	if retryCount > 50 {
-		return errors.New("beyound max try count 50")
-	}
-
-	task := d.availbTask(tasks, blockheight)
-	if task == nil {
-		time.Sleep(time.Millisecond * 400)
-		goto ReDownload
-	}
-
-	var downloadStart = time.Now().UnixNano()
-
-	getblocks := &types.P2PGetBlocks{StartHeight: blockheight, EndHeight: blockheight,
-		Version: 0}
-
-	peerID := d.GetHost().ID()
-	pubkey, _ := d.GetHost().Peerstore().PubKey(peerID).Bytes()
-	blockReq := &types.MessageGetBlocksReq{MessageData: d.NewMessageCommon(uuid.New().String(), peerID.Pretty(), pubkey, false),
-		Message: getblocks}
-
-	req := &prototypes.StreamRequest{
-		PeerID: task.Pid,
-		Data:   blockReq,
-		MsgID:  []core.ProtocolID{downloadBlockReq},
-	}
-	var resp types.MessageGetBlocksResp
-	err := d.SendRecvPeer(req, &resp)
-	if err != nil {
-		log.Error("handleEvent", "SendRecvPeer", err, "pid", task.Pid)
-		d.releaseJob(task)
-		tasks = tasks.Remove(task)
-		goto ReDownload
-	}
-
-	block := resp.GetMessage().GetItems()[0].GetBlock()
-	remotePid := task.Pid.Pretty()
-	costTime := (time.Now().UnixNano() - downloadStart) / 1e6
-
-	log.Debug("download+++++", "from", remotePid, "blockheight", block.GetHeight(),
-		"blockSize (bytes)", block.Size(), "costTime ms", costTime)
-
+func (d *downloadProtol) loopSendBlockMsg() {
 	client := d.GetQueueClient()
-	newmsg := client.NewMessage("blockchain", types.EventSyncBlock, &types.BlockPid{Pid: remotePid, Block: block}) //加入到输出通道)
-	client.SendTimeout(newmsg, false, 10*time.Second)
-	d.releaseJob(task)
+	for {
+		select {
+		case msg := <-d.blockMsg:
+			client.SendTimeout(msg, false, 3*time.Second)
 
-	return nil
+		case <-d.Ctx.Done():
+			return
+		}
+
+	}
+}
+
+//以节点pid 为中心，多节点自由竞争待下载的区块，如果此时有30个Pid被分配到下载任务中，则同时会会有30个Pid 下载不同的区块，
+//如果下载失败，则把刚才下载失败的区块放回任务channel中，重新让其他节点进行任务竞争，直到下载成功。
+
+func (d *downloadProtol) processDownload(ctx context.Context, pid, taskid string) {
+
+	id, err := peer.Decode(pid)
+	if err != nil {
+		//pid 格式不对，直接退出下载竞争序列
+		return
+	}
+	for {
+		select {
+		case blockheight := <-d.taskChan:
+			//各个节点竞争获取到blockheight
+			log.Debug("download", blockheight)
+			childCtx, _ := context.WithTimeout(ctx, time.Second*30)
+			err = d.downloadBlock(childCtx, blockheight, id)
+			if err != nil { //下载失败，任务回收
+				log.Error("downloadBlock", "err", err.Error())
+				d.taskChan <- blockheight
+				//用临时休眠的方式，暂停任务抢占,让其余节点抢占此区块高度的下载
+				time.Sleep(time.Millisecond * 300)
+				break
+			}
+			//下载成功
+			d.locker.Lock()
+			if tasknum, ok := d.storeTask[taskid]; ok {
+				d.storeTask[taskid] = tasknum - 1
+			}
+			d.locker.Unlock()
+			//进入下一轮竞争状态
+
+		case <-ctx.Done():
+			return
+		}
+
+	}
+}
+
+func (d *downloadProtol) downloadBlock(ctx context.Context, blockheight int64, pid peer.ID) error {
+	select {
+	case <-ctx.Done():
+		return errors.New("download timeout")
+	default:
+
+		var retryCount uint
+	ReDownload:
+		retryCount++
+		if retryCount > 3 {
+			return errors.New("beyound max try count 3")
+		}
+
+		var since = time.Now().UnixNano()
+
+		getblocks := &types.P2PGetBlocks{StartHeight: blockheight, EndHeight: blockheight,
+			Version: 0}
+
+		blockReq := &types.MessageGetBlocksReq{
+			Message: getblocks}
+
+		req := &prototypes.StreamRequest{
+			PeerID: pid,
+			Data:   blockReq,
+			MsgID:  []core.ProtocolID{downloadBlockReq},
+		}
+		var resp types.MessageGetBlocksResp
+		err := d.SendRecvPeer(req, &resp)
+		if err != nil {
+			log.Error("downloadBlock", "SendRecvPeer", err, "pid", pid, "retryCount", retryCount, "blockheight", blockheight)
+			goto ReDownload
+		}
+
+		block := resp.GetMessage().GetItems()[0].GetBlock()
+		remotePid := pid.Pretty()
+		costTime := (time.Now().UnixNano() - since) / 1e6
+
+		log.Debug("download+++++", "from", remotePid, "blockheight", block.GetHeight(),
+			"blockSize (bytes)", block.Size(), "costTime ms", costTime)
+
+		client := d.GetQueueClient()
+		newmsg := client.NewMessage("blockchain", types.EventSyncBlock, &types.BlockPid{Pid: remotePid, Block: block}) //加入到输出通道)
+		d.blockMsg <- newmsg
+		return nil
+	}
 
 }
