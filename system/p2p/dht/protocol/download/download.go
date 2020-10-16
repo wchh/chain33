@@ -39,23 +39,27 @@ type (
 	taskID  string
 	taskNum int64
 )
+type job struct {
+	taskID      string
+	count       int32
+	blockheight int64
+}
 
 //type Istream
 type downloadProtol struct {
 	*prototypes.BaseProtocol
-	taskChan  chan int64
-	blockMsg  chan *queue.Message
-	storeTask map[string]int64
-	locker    sync.Mutex
+	blockMsg chan *queue.Message
+	jobs     map[string]int32
+	locker   sync.Mutex
 }
 
 func (d *downloadProtol) InitProtocol(env *prototypes.P2PEnv) {
 	d.P2PEnv = env
 	//注册事件处理函数
 	prototypes.RegisterEventHandler(types.EventFetchBlocks, d.handleEvent)
-	d.taskChan = make(chan int64)
+
 	d.blockMsg = make(chan *queue.Message)
-	d.storeTask = make(map[string]int64)
+	d.jobs = make(map[string]int32)
 	go d.loopSendBlockMsg()
 
 }
@@ -154,21 +158,19 @@ func (d *downloadProtol) handleEvent(msg *queue.Message) {
 
 	msg.Reply(d.GetQueueClient().NewMessage("blockchain", types.EventReply, types.Reply{IsOk: true, Msg: []byte("ok")}))
 	var tID = uuid.New().String() + "+" + fmt.Sprintf("%d-%d", req.GetStart(), req.GetEnd())
-	d.storeTask[tID] = req.GetEnd() - req.Start + 1
+	d.locker.Lock()
+	d.jobs[tID] = int32(req.GetEnd() - req.Start + 1)
+	d.locker.Unlock()
 	log.Debug("handleEvent", "taskID", tID, "download start", req.GetStart(), "download end", req.GetEnd(), "pids", pids)
 
 	//具体的下载逻辑
-	var wg sync.WaitGroup
 	var since = time.Now().UnixNano()
 
 	//下发要下载的区块
+	var taskChan = make(chan int64)
 	go func(start, end int64) {
-		defer func() {
-			wg.Done()
-		}()
-		wg.Add(1)
 		for blockheight := start; blockheight <= end; blockheight++ {
-			d.taskChan <- blockheight
+			taskChan <- blockheight
 		}
 	}(req.GetStart(), req.GetEnd())
 
@@ -176,34 +178,25 @@ func (d *downloadProtol) handleEvent(msg *queue.Message) {
 	ctx, cancelDownloadProc := context.WithCancel(d.Ctx)
 	for _, pid := range pids { //以节点为单位，自由竞争下载区块
 		go func(pid string) {
-			d.processDownload(ctx, pid, tID)
+			d.processDownload(ctx, pid, tID, taskChan)
 		}(pid)
 	}
 
-	wg.Wait()
 	d.waitTaskFinish(tID)
 	cancelDownloadProc()
 
-	log.Info("Download blocks Complete!", "TaskID++++++++++++++", tID,
-		"cost time", fmt.Sprintf("cost time:%d ms", (time.Now().UnixNano()-since)/1e6),
-		"from", pids)
+	log.Info("Download blocks Complete!", "TaskID++++++++++++++", tID, "blocknum", int32(req.GetEnd()-req.Start+1),
+		"cost time", fmt.Sprintf("cost time:%d ms", (time.Now().UnixNano()-since)/1e6))
 
 }
 
 func (d *downloadProtol) waitTaskFinish(taskID string) {
 	for {
-		d.locker.Lock()
-		if taskNum, ok := d.storeTask[taskID]; ok {
-			if taskNum <= 0 {
-				log.Info("all downloadprocee finish", "taskNum", taskNum)
-				//remove taskID
-				delete(d.storeTask, taskID)
-				d.locker.Unlock()
-				return
-			}
-
+		restJob := d.jobsNum(taskID)
+		if restJob <= 0 {
+			log.Info("waitTaskFinish", "the rest job num:", restJob)
+			return
 		}
-		d.locker.Unlock()
 		time.Sleep(time.Millisecond * 300)
 	}
 }
@@ -222,10 +215,35 @@ func (d *downloadProtol) loopSendBlockMsg() {
 	}
 }
 
+func (d *downloadProtol) jobsUpdate(job *job) int32 {
+	d.locker.Lock()
+	defer d.locker.Unlock()
+
+	taskNum, ok := d.jobs[job.taskID]
+	if ok {
+		taskNum = taskNum + job.count
+		if taskNum <= 0 {
+			delete(d.jobs, job.taskID)
+		}
+		d.jobs[job.taskID] = taskNum
+	}
+	return taskNum
+}
+
+func (d *downloadProtol) jobsNum(taskID string) int32 {
+	d.locker.Lock()
+	defer d.locker.Unlock()
+	taskNum, ok := d.jobs[taskID]
+	if ok {
+		return taskNum
+	}
+	return 0
+}
+
 //以节点pid 为中心，多节点自由竞争待下载的区块，如果此时有30个Pid被分配到下载任务中，则同时会会有30个Pid 下载不同的区块，
 //如果下载失败，则把刚才下载失败的区块放回任务channel中，重新让其他节点进行任务竞争，直到下载成功。
 
-func (d *downloadProtol) processDownload(ctx context.Context, pid, taskid string) {
+func (d *downloadProtol) processDownload(ctx context.Context, pid, taskid string, taskChan chan int64) {
 
 	id, err := peer.Decode(pid)
 	if err != nil {
@@ -234,24 +252,24 @@ func (d *downloadProtol) processDownload(ctx context.Context, pid, taskid string
 	}
 	for {
 		select {
-		case blockheight := <-d.taskChan:
+		case blockheight := <-taskChan:
 			//各个节点竞争获取到blockheight
 			log.Debug("download", blockheight)
 			childCtx, _ := context.WithTimeout(ctx, time.Second*30)
 			err = d.downloadBlock(childCtx, blockheight, id)
 			if err != nil { //下载失败，任务回收
 				log.Error("downloadBlock", "err", err.Error())
-				d.taskChan <- blockheight
+				taskChan <- blockheight
 				//用临时休眠的方式，暂停任务抢占,让其余节点抢占此区块高度的下载
 				time.Sleep(time.Millisecond * 300)
 				break
 			}
 			//下载成功
-			d.locker.Lock()
-			if tasknum, ok := d.storeTask[taskid]; ok {
-				d.storeTask[taskid] = tasknum - 1
-			}
-			d.locker.Unlock()
+			var msg job
+			msg.taskID = taskid
+			msg.count = -1
+			msg.blockheight = blockheight
+			d.jobsUpdate(&msg)
 			//进入下一轮竞争状态
 
 		case <-ctx.Done():
