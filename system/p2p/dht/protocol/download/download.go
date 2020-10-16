@@ -194,7 +194,6 @@ func (d *downloadProtol) waitTaskFinish(taskID string) {
 	for {
 		restJob := d.jobsNum(taskID)
 		if restJob <= 0 {
-			log.Info("waitTaskFinish", "the rest job num:", restJob)
 			return
 		}
 		time.Sleep(time.Millisecond * 300)
@@ -254,7 +253,6 @@ func (d *downloadProtol) processDownload(ctx context.Context, pid, taskid string
 		select {
 		case blockheight := <-taskChan:
 			//各个节点竞争获取到blockheight
-			log.Debug("download", blockheight)
 			childCtx, _ := context.WithTimeout(ctx, time.Second*30)
 			err = d.downloadBlock(childCtx, blockheight, id)
 			if err != nil { //下载失败，任务回收
