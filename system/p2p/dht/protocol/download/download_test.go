@@ -113,7 +113,7 @@ func TestFetchBlockEvent(t *testing.T) {
 	q := queue.New("test")
 
 	protocol := newTestProtocol(q)
-	testBlockReq(q)
+	testBlockReq(t, q)
 
 	msgs := make([]*queue.Message, 0)
 	msgs = append(msgs, protocol.QueueClient.NewMessage("p2p", types.EventFetchBlocks, &types.ReqBlocks{
@@ -139,6 +139,14 @@ func TestFetchBlockEvent(t *testing.T) {
 	protocol.GetPeerInfoManager().Add("16Uiu2HAmHffWU9fXzNUG3hiCCgpdj8Y9q1BwbbK7ZBsxSsnaDXk4", &types.Peer{Header: &types.Header{Height: 10000}})
 
 	for _, msg := range msgs {
+		go func() {
+			for jobID, _ := range protocol.jobs {
+				jobNum := protocol.jobsNum(jobID)
+				t.Log("jobNum", jobNum)
+				jobNum = protocol.jobsUpdate(&job{taskID: jobID, count: -jobNum})
+				t.Log("update jobNum", jobNum, "taskID", jobID)
+			}
+		}()
 		testHandleEvent(protocol, msg)
 	}
 
@@ -154,7 +162,7 @@ func Test_util(t *testing.T) {
 	handler.BaseStreamHandler = new(prototypes.BaseStreamHandler)
 	handler.SetProtocol(protocol)
 
-	testBlockReq(q)
+	testBlockReq(t, q)
 
 	p2pgetblocks := &types.P2PGetBlocks{StartHeight: 1, EndHeight: 1,
 		Version: 0}
@@ -163,17 +171,29 @@ func Test_util(t *testing.T) {
 	ok := handler.VerifyRequest(blockReq, blockReq.MessageData)
 	assert.False(t, ok)
 
-	protocol.processReq("uid122222", p2pgetblocks)
+	protocol.getBlock("uid122222", p2pgetblocks)
 
 	resp, _ := protocol.QueryBlockChain(types.EventGetBlocks, blockReq)
 	assert.NotNil(t, resp)
 }
 
-func testBlockReq(q queue.Queue) {
+func Test_loopSendBlockMsg(t *testing.T) {
+	q := queue.New("test")
+	protocol := newTestProtocol(q)
+	cli := q.Client()
+	testBlockReq(t, q)
+	newmsg := cli.NewMessage("blockchain", types.EventSyncBlock, &types.BlockPid{Pid: "16Uiu2HAmTdgKpRmE6sXj512HodxBPMZmjh6vHG1m4ftnXY3wLSpg",
+		Block: nil}) //加入到输出通道)
+	protocol.blockMsg <- newmsg
+	time.Sleep(time.Second)
+}
+
+func testBlockReq(t *testing.T, q queue.Queue) {
 	client := q.Client()
 	client.Sub("blockchain")
 	go func() {
 		for msg := range client.Recv() {
+			t.Log("recvMsg", msg)
 			msg.Reply(client.NewMessage("p2p", types.EventFetchBlocks, &types.BlockDetails{Items: []*types.BlockDetail{}}))
 		}
 	}()

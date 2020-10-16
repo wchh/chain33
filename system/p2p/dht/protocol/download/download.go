@@ -73,20 +73,18 @@ func (d *downloadHander) Handle(stream core.Stream) {
 	protocol := d.GetProtocol().(*downloadProtol)
 
 	//解析处理
-	if stream.Protocol() == downloadBlockReq {
-		var data types.MessageGetBlocksReq
-		err := prototypes.ReadStream(&data, stream)
-		if err != nil {
-			log.Error("Handle", "err", err)
-			return
-		}
-		recvData := data.Message
-		protocol.onReq(data.GetMessageData().GetId(), recvData, stream)
+	var data types.MessageGetBlocksReq
+	err := prototypes.ReadStream(&data, stream)
+	if err != nil {
+		log.Error("Handle", "err", err)
+		return
 	}
+	recvData := data.Message
+	protocol.processStreamReq(data.GetMessageData().GetId(), recvData, stream)
 
 }
 
-func (d *downloadProtol) processReq(id string, message *types.P2PGetBlocks) (*types.MessageGetBlocksResp, error) {
+func (d *downloadProtol) getBlock(id string, message *types.P2PGetBlocks) (*types.MessageGetBlocksResp, error) {
 
 	//允许下载的最大高度区间为256
 	if message.GetEndHeight()-message.GetStartHeight() > 256 || message.GetEndHeight() < message.GetStartHeight() {
@@ -94,9 +92,7 @@ func (d *downloadProtol) processReq(id string, message *types.P2PGetBlocks) (*ty
 
 	}
 	//开始下载指定高度
-
 	reqblock := &types.ReqBlocks{Start: message.GetStartHeight(), End: message.GetEndHeight()}
-
 	resp, err := d.QueryBlockChain(types.EventGetBlocks, reqblock)
 	if err != nil {
 		log.Error("sendToBlockChain", "Error", err.Error())
@@ -122,10 +118,10 @@ func (d *downloadProtol) processReq(id string, message *types.P2PGetBlocks) (*ty
 
 }
 
-func (d *downloadProtol) onReq(id string, message *types.P2PGetBlocks, s core.Stream) {
+func (d *downloadProtol) processStreamReq(id string, message *types.P2PGetBlocks, s core.Stream) {
 	log.Debug("OnReq", "start", message.GetStartHeight(), "end", message.GetStartHeight(), "remoteId", s.Conn().RemotePeer().String(), "id", id)
 
-	blockdata, err := d.processReq(id, message)
+	blockdata, err := d.getBlock(id, message)
 	if err != nil {
 		log.Error("processReq", "err", err, "pid", s.Conn().RemotePeer().String())
 		return
