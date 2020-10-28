@@ -35,11 +35,9 @@ var (
 	broadcastPubSub = "/chain33/broadcast/pubsub/1.0.0"
 )
 
-func Init() {
+func init() {
 	prototypes.RegisterProtocol(protoTypeID, &broadcastProtocol{})
-	prototypes.RegisterStreamHandler(protoTypeID, broadcastV1, &broadcastHandler{})
-	//prototypes.RegisterStreamHandler(protoTypeID, broadcastV2, &broadcastHandlerV2{})
-	prototypes.RegisterStreamHandler(protoTypeID, broadcastPubSub, &pubsubHandler{})
+
 }
 
 //
@@ -66,7 +64,9 @@ func (protocol *broadcastProtocol) InitProtocol(env *prototypes.P2PEnv) {
 
 	broadcastV1 = env.Prefix + broadcastV1
 	broadcastPubSub = env.Prefix + broadcastPubSub
-	Init()
+	prototypes.RegisterStreamHandler(protoTypeID, broadcastV1, &broadcastHandler{})
+	//prototypes.RegisterStreamHandler(protoTypeID, broadcastV2, &broadcastHandlerV2{})
+	prototypes.RegisterStreamHandler(protoTypeID, broadcastPubSub, &pubsubHandler{})
 	protocol.BaseProtocol = new(prototypes.BaseProtocol)
 
 	protocol.P2PEnv = env

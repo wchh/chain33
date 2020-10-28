@@ -23,9 +23,9 @@ const (
 
 var headerInfoReq = "/chain33/headerinfoReq/1.0.0"
 
-func Init() {
+func init() {
 	prototypes.RegisterProtocol(protoTypeID, &headerInfoProtol{})
-	prototypes.RegisterStreamHandler(protoTypeID, headerInfoReq, &headerInfoHander{})
+
 }
 
 //type Istream
@@ -36,7 +36,7 @@ type headerInfoProtol struct {
 // InitProtocol init protocol
 func (h *headerInfoProtol) InitProtocol(env *prototypes.P2PEnv) {
 	headerInfoReq = env.Prefix + headerInfoReq
-	Init()
+	prototypes.RegisterStreamHandler(protoTypeID, headerInfoReq, &headerInfoHander{})
 	h.P2PEnv = env
 	prototypes.RegisterEventHandler(types.EventFetchBlockHeaders, h.handleEvent)
 }

@@ -123,7 +123,6 @@ func (p *ProtocolManager) Init(env *P2PEnv) {
 		if baseValue != reflect.ValueOf(nil) && baseValue.Kind() == reflect.Ptr {
 			baseValue.Set(reflect.ValueOf(&BaseProtocol{})) //对baseprotocal进行初始化
 		}
-
 		protocol := protoVal.Interface().(IProtocol)
 		protocol.InitProtocol(env)
 		p.protoMap[id] = protocol

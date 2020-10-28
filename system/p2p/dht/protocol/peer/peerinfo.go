@@ -38,11 +38,8 @@ var (
 )
 var log = log15.New("module", "p2p.peer")
 
-func Init() {
+func init() {
 	prototypes.RegisterProtocol(protoTypeID, &peerInfoProtol{})
-	prototypes.RegisterStreamHandler(protoTypeID, peerInfoReq, &peerInfoHandler{})
-	//prototypes.RegisterStreamHandler(protoTypeID, peerInfoReqV2, &peerInfoHandler{})
-	prototypes.RegisterStreamHandler(protoTypeID, peerVersionReq, &peerInfoHandler{})
 	prototypes.RegisterProtocol(pubsubTypeID, &peerPubSub{})
 
 }
@@ -59,7 +56,9 @@ type peerInfoProtol struct {
 func (p *peerInfoProtol) InitProtocol(env *prototypes.P2PEnv) {
 	peerInfoReq = env.Prefix + peerInfoReq
 	peerVersionReq = env.Prefix + peerVersionReq
-	Init()
+	prototypes.RegisterStreamHandler(protoTypeID, peerInfoReq, &peerInfoHandler{})
+	//prototypes.RegisterStreamHandler(protoTypeID, peerInfoReqV2, &peerInfoHandler{})
+	prototypes.RegisterStreamHandler(protoTypeID, peerVersionReq, &peerInfoHandler{})
 	p.P2PEnv = env
 	p.p2pCfg = env.SubConfig
 	prototypes.RegisterEventHandler(types.EventPeerInfo, p.handleEvent)

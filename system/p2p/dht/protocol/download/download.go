@@ -24,9 +24,9 @@ var (
 	log = log15.New("module", "p2p.download")
 )
 
-func Init() {
+func init() {
 	prototypes.RegisterProtocol(protoTypeID, &downloadProtol{})
-	prototypes.RegisterStreamHandler(protoTypeID, string(downloadBlockReq), &downloadHander{})
+
 }
 
 const (
@@ -42,7 +42,7 @@ type downloadProtol struct {
 
 func (d *downloadProtol) InitProtocol(env *prototypes.P2PEnv) {
 	downloadBlockReq = ID(env.Prefix) + downloadBlockReq
-	Init()
+	prototypes.RegisterStreamHandler(protoTypeID, string(downloadBlockReq), &downloadHander{})
 	d.P2PEnv = env
 	//注册事件处理函数
 	prototypes.RegisterEventHandler(types.EventFetchBlocks, d.handleEvent)

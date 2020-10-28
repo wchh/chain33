@@ -174,6 +174,7 @@ func (p *P2P) StartP2P() {
 		RoutingDiscovery: p.discovery.RoutingDiscovery,
 		Prefix:           fmt.Sprintf("%s-%d/", p.chainCfg.GetTitle(), p.subCfg.Channel),
 	}
+
 	p.env = env
 	protocol.Init(env)
 	//debug new
