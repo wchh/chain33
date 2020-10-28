@@ -347,16 +347,15 @@ func (h *peerInfoHandler) Handle(stream core.Stream) {
 
 	//解析处理
 	log.Debug("PeerInfo Handler", "stream proto", stream.Protocol())
-	prefix := fmt.Sprintf("%s-%d/", h.GetProtocol().GetP2PEnv().ChainCfg.GetTitle(), h.GetProtocol().GetP2PEnv().SubConfig.Channel)
 	switch stream.Protocol() {
-	case ID(prefix + peerInfoReq):
+	case ID(peerInfoReq):
 		var req types.MessagePeerInfoReq
 		err := prototypes.ReadStream(&req, stream)
 		if err != nil {
 			return
 		}
 		protocol.onReq(&req, stream)
-	case ID(prefix + peerVersionReq):
+	case ID(peerVersionReq):
 		var req types.MessageP2PVersionReq
 		err := prototypes.ReadStream(&req, stream)
 		if err != nil {

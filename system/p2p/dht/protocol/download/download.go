@@ -41,9 +41,8 @@ type downloadProtol struct {
 }
 
 func (d *downloadProtol) InitProtocol(env *prototypes.P2PEnv) {
+	downloadBlockReq = ID(env.Prefix) + downloadBlockReq
 	Init()
-	prefix := fmt.Sprintf("%s-%d/", env.ChainCfg.GetTitle(), env.SubConfig.Channel)
-	downloadBlockReq = ID(prefix) + downloadBlockReq
 	d.P2PEnv = env
 	//注册事件处理函数
 	prototypes.RegisterEventHandler(types.EventFetchBlocks, d.handleEvent)
