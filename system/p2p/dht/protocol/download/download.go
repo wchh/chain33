@@ -3,10 +3,10 @@ package download
 import (
 	"errors"
 	"fmt"
+	. "github.com/libp2p/go-libp2p-core/protocol"
 	"sync"
 	"sync/atomic"
 	"time"
-
 	//protobufCodec "github.com/multiformats/go-multicodec/protobuf"
 
 	"github.com/33cn/chain33/common/log/log15"
@@ -24,15 +24,16 @@ var (
 	log = log15.New("module", "p2p.download")
 )
 
-func init() {
+func Init() {
 	prototypes.RegisterProtocol(protoTypeID, &downloadProtol{})
-	prototypes.RegisterStreamHandler(protoTypeID, downloadBlockReq, &downloadHander{})
+	prototypes.RegisterStreamHandler(protoTypeID, string(downloadBlockReq), &downloadHander{})
 }
 
 const (
-	protoTypeID      = "DownloadProtocolType"
-	downloadBlockReq = "/chain33/downloadBlockReq/1.0.0"
+	protoTypeID = "DownloadProtocolType"
 )
+
+var downloadBlockReq ID = "/chain33/downloadBlockReq/1.0.0"
 
 //type Istream
 type downloadProtol struct {
@@ -40,6 +41,9 @@ type downloadProtol struct {
 }
 
 func (d *downloadProtol) InitProtocol(env *prototypes.P2PEnv) {
+	Init()
+	prefix := fmt.Sprintf("%s-%d/", env.ChainCfg.GetTitle(), env.SubConfig.Channel)
+	downloadBlockReq = ID(prefix) + downloadBlockReq
 	d.P2PEnv = env
 	//注册事件处理函数
 	prototypes.RegisterEventHandler(types.EventFetchBlocks, d.handleEvent)
@@ -55,16 +59,14 @@ func (d *downloadHander) Handle(stream core.Stream) {
 	protocol := d.GetProtocol().(*downloadProtol)
 
 	//解析处理
-	if stream.Protocol() == downloadBlockReq {
-		var data types.MessageGetBlocksReq
-		err := prototypes.ReadStream(&data, stream)
-		if err != nil {
-			log.Error("Handle", "err", err)
-			return
-		}
-		recvData := data.Message
-		protocol.onReq(data.GetMessageData().GetId(), recvData, stream)
+	var data types.MessageGetBlocksReq
+	err := prototypes.ReadStream(&data, stream)
+	if err != nil {
+		log.Error("Handle", "err", err)
+		return
 	}
+	recvData := data.Message
+	protocol.onReq(data.GetMessageData().GetId(), recvData, stream)
 
 }
 

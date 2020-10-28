@@ -15,7 +15,7 @@ import (
 )
 
 // all protocols
-const (
+var (
 	//p2pstore protocols
 	FetchChunk        = "/chain33/fetch-chunk/" + types2.Version
 	StoreChunk        = "/chain33/store-chunk/" + types2.Version
@@ -39,6 +39,6 @@ type P2PEnv struct {
 	SubConfig   *types2.P2PSubConfig
 	DB          ds.Datastore
 	*discovery.RoutingDiscovery
-
+	Prefix       string
 	RoutingTable *kbt.RoutingTable
 }

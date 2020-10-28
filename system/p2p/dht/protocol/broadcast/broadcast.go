@@ -8,9 +8,9 @@ package broadcast
 import (
 	"context"
 	"encoding/hex"
-	"sync/atomic"
-
 	"github.com/33cn/chain33/common/pubsub"
+	. "github.com/libp2p/go-libp2p-core/protocol"
+	"sync/atomic"
 
 	"github.com/33cn/chain33/p2p/utils"
 
@@ -27,12 +27,15 @@ var log = log15.New("module", "p2p.broadcast")
 
 const (
 	protoTypeID = "BroadcastProtocolType"
+)
+
+var (
 	broadcastV1 = "/chain33/p2p/broadcast/1.0.0"
 	//broadcastV2     = "/chain33/p2p/broadcast/2.0.0"
 	broadcastPubSub = "/chain33/broadcast/pubsub/1.0.0"
 )
 
-func init() {
+func Init() {
 	prototypes.RegisterProtocol(protoTypeID, &broadcastProtocol{})
 	prototypes.RegisterStreamHandler(protoTypeID, broadcastV1, &broadcastHandler{})
 	//prototypes.RegisterStreamHandler(protoTypeID, broadcastV2, &broadcastHandlerV2{})
@@ -60,6 +63,10 @@ type broadcastProtocol struct {
 
 // InitProtocol init protocol
 func (protocol *broadcastProtocol) InitProtocol(env *prototypes.P2PEnv) {
+
+	broadcastV1 = env.Prefix + broadcastV1
+	broadcastPubSub = env.Prefix + broadcastPubSub
+	Init()
 	protocol.BaseProtocol = new(prototypes.BaseProtocol)
 
 	protocol.P2PEnv = env
@@ -168,7 +175,7 @@ func (protocol *broadcastProtocol) sendPeer(data interface{}, pid, version strin
 		log.Error("sendPeer", "id", pid, "decode pid err", err)
 		return err
 	}
-	stream, err := prototypes.NewStream(protocol.Host, rawPid, broadcastV1)
+	stream, err := prototypes.NewStream(protocol.Host, rawPid, ID(broadcastV1))
 	if err != nil {
 		log.Error("sendPeer", "id", pid, "NewStreamErr", err)
 		return err

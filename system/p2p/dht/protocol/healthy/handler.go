@@ -1,13 +1,13 @@
 package healthy
 
 import (
-	"sync/atomic"
-	"time"
-
 	"github.com/33cn/chain33/common/log/log15"
 	"github.com/33cn/chain33/system/p2p/dht/protocol"
 	types2 "github.com/33cn/chain33/system/p2p/dht/types"
 	"github.com/33cn/chain33/types"
+	. "github.com/libp2p/go-libp2p-core/protocol"
+	"sync/atomic"
+	"time"
 )
 
 const (
@@ -33,9 +33,10 @@ func InitProtocol(env *protocol.P2PEnv) {
 		P2PEnv:     env,
 		fallBehind: 1<<63 - 1,
 	}
-	p.Host.SetStreamHandler(protocol.IsSync, protocol.HandlerWithRW(p.handleStreamIsSync))
-	p.Host.SetStreamHandler(protocol.IsHealthy, protocol.HandlerWithRW(p.handleStreamIsHealthy))
-	p.Host.SetStreamHandler(protocol.GetLastHeader, protocol.HandlerWithRW(p.handleStreamLastHeader))
+
+	p.Host.SetStreamHandler(ID(protocol.IsSync), protocol.HandlerWithRW(p.handleStreamIsSync))
+	p.Host.SetStreamHandler(ID(protocol.IsHealthy), protocol.HandlerWithRW(p.handleStreamIsHealthy))
+	p.Host.SetStreamHandler(ID(protocol.GetLastHeader), protocol.HandlerWithRW(p.handleStreamLastHeader))
 
 	//保存一个全局变量备查，避免频繁到网络中请求。
 	go func() {

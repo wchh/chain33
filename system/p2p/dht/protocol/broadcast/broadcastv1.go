@@ -6,12 +6,12 @@ package broadcast
 
 import (
 	"context"
-	"sync/atomic"
-
 	prototypes "github.com/33cn/chain33/system/p2p/dht/protocol/types"
 	"github.com/33cn/chain33/types"
 	core "github.com/libp2p/go-libp2p-core"
 	"github.com/libp2p/go-libp2p-core/peer"
+	. "github.com/libp2p/go-libp2p-core/protocol"
+	"sync/atomic"
 )
 
 type broadcastHandler struct {
@@ -118,7 +118,7 @@ func (protocol *broadcastProtocol) broadcastV1(peerCtx context.Context, pid peer
 			broadData := &types.MessageBroadCast{
 				Message: sendData}
 
-			stream, err = prototypes.NewStream(protocol.Host, pid, broadcastV1)
+			stream, err = prototypes.NewStream(protocol.Host, pid, ID(broadcastV1))
 			if err != nil {
 				log.Error("broadcastV1", "pid", sPid, "NewStreamErr", err)
 				return

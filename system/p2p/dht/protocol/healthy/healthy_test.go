@@ -3,8 +3,8 @@ package healthy
 import (
 	"context"
 	"crypto/rand"
-
 	"fmt"
+	. "github.com/libp2p/go-libp2p-core/protocol"
 	"testing"
 	"time"
 
@@ -49,7 +49,7 @@ func TestHandler(t *testing.T) {
 func testLastHeader(p *Protocol, id peer.ID) (int64, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
 	defer cancel()
-	stream, err := p.Host.NewStream(ctx, id, protocol.GetLastHeader)
+	stream, err := p.Host.NewStream(ctx, id, ID(protocol.GetLastHeader))
 	if err != nil {
 		return -1, err
 	}
@@ -72,7 +72,7 @@ func testLastHeader(p *Protocol, id peer.ID) (int64, error) {
 func testIsSync(p *Protocol, id peer.ID) (bool, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	stream, err := p.Host.NewStream(ctx, id, protocol.IsSync)
+	stream, err := p.Host.NewStream(ctx, id, ID(protocol.IsSync))
 	if err != nil {
 		return false, err
 	}
@@ -95,7 +95,7 @@ func testIsSync(p *Protocol, id peer.ID) (bool, error) {
 func testIsHealthy(p *Protocol, id peer.ID) (bool, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	stream, err := p.Host.NewStream(ctx, id, protocol.IsHealthy)
+	stream, err := p.Host.NewStream(ctx, id, ID(protocol.IsHealthy))
 	if err != nil {
 		return false, err
 	}
@@ -191,9 +191,9 @@ func initEnv(t *testing.T, q queue.Queue) []*Protocol {
 		fallBehind: 1 << 30,
 	}
 	//注册p2p通信协议，用于处理节点之间请求
-	p2.Host.SetStreamHandler(protocol.IsHealthy, protocol.HandlerWithRW(p2.handleStreamIsHealthy))
-	p2.Host.SetStreamHandler(protocol.IsSync, protocol.HandlerWithRW(p2.handleStreamIsSync))
-	p2.Host.SetStreamHandler(protocol.GetLastHeader, protocol.HandlerWithRW(p2.handleStreamLastHeader))
+	p2.Host.SetStreamHandler(ID(protocol.IsHealthy), protocol.HandlerWithRW(p2.handleStreamIsHealthy))
+	p2.Host.SetStreamHandler(ID(protocol.IsSync), protocol.HandlerWithRW(p2.handleStreamIsSync))
+	p2.Host.SetStreamHandler(ID(protocol.GetLastHeader), protocol.HandlerWithRW(p2.handleStreamLastHeader))
 	client1.Sub("p2p")
 	client2.Sub("p2p2")
 

@@ -3,17 +3,18 @@ package p2pstore
 import (
 	"context"
 	"encoding/hex"
-	"sync"
-	"time"
-
 	"github.com/33cn/chain33/common/log/log15"
 	"github.com/33cn/chain33/system/p2p/dht/protocol"
 	types2 "github.com/33cn/chain33/system/p2p/dht/types"
 	"github.com/33cn/chain33/types"
 	"github.com/libp2p/go-libp2p-core/discovery"
 	"github.com/libp2p/go-libp2p-core/peer"
+	. "github.com/libp2p/go-libp2p-core/protocol"
+	_ "github.com/libp2p/go-libp2p-core/protocol"
 	dht "github.com/libp2p/go-libp2p-kad-dht"
 	kb "github.com/libp2p/go-libp2p-kbucket"
+	"sync"
+	"time"
 )
 
 const maxConcurrency = 10
@@ -61,10 +62,14 @@ func InitProtocol(env *protocol.P2PEnv) {
 	p.initLocalChunkInfoMap()
 
 	//注册p2p通信协议，用于处理节点之间请求
-	p.Host.SetStreamHandler(protocol.FetchChunk, protocol.HandlerWithClose(p.handleStreamFetchChunk)) //数据较大，采用特殊写入方式
-	p.Host.SetStreamHandler(protocol.StoreChunk, protocol.HandlerWithAuth(p.handleStreamStoreChunks))
-	p.Host.SetStreamHandler(protocol.GetHeader, protocol.HandlerWithAuthAndSign(p.handleStreamGetHeader))
-	p.Host.SetStreamHandler(protocol.GetChunkRecord, protocol.HandlerWithAuthAndSign(p.handleStreamGetChunkRecord))
+	protocol.FetchChunk = env.Prefix + protocol.FetchChunk
+	protocol.StoreChunk = env.Prefix + protocol.StoreChunk
+	protocol.GetHeader = env.Prefix + protocol.GetHeader
+	protocol.GetChunkRecord = env.Prefix + protocol.GetChunkRecord
+	p.Host.SetStreamHandler(ID(protocol.FetchChunk), protocol.HandlerWithClose(p.handleStreamFetchChunk)) //数据较大，采用特殊写入方式
+	p.Host.SetStreamHandler(ID(protocol.StoreChunk), protocol.HandlerWithAuth(p.handleStreamStoreChunks))
+	p.Host.SetStreamHandler(ID(protocol.GetHeader), protocol.HandlerWithAuthAndSign(p.handleStreamGetHeader))
+	p.Host.SetStreamHandler(ID(protocol.GetChunkRecord), protocol.HandlerWithAuthAndSign(p.handleStreamGetChunkRecord))
 	//同时注册eventHandler，用于处理blockchain模块发来的请求
 	protocol.RegisterEventHandler(types.EventNotifyStoreChunk, protocol.EventHandlerWithRecover(p.handleEventNotifyStoreChunk))
 	protocol.RegisterEventHandler(types.EventGetChunkBlock, protocol.EventHandlerWithRecover(p.handleEventGetChunkBlock))

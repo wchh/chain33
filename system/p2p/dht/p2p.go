@@ -172,6 +172,7 @@ func (p *P2P) StartP2P() {
 		DB:               p.db,
 		RoutingTable:     p.discovery.RoutingTable(),
 		RoutingDiscovery: p.discovery.RoutingDiscovery,
+		Prefix:           fmt.Sprintf("%s-%d/", p.chainCfg.GetTitle(), p.subCfg.Channel),
 	}
 	p.env = env
 	protocol.Init(env)
@@ -186,6 +187,7 @@ func (p *P2P) StartP2P() {
 		DB:               p.db,
 		RoutingDiscovery: p.discovery.RoutingDiscovery,
 		RoutingTable:     p.discovery.RoutingTable(),
+		Prefix:           fmt.Sprintf("%s-%d/", p.chainCfg.GetTitle(), p.subCfg.Channel),
 	}
 	protocol.InitAllProtocol(env2)
 	go p.peerInfoManag.Start()

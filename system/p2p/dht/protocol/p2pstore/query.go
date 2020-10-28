@@ -5,15 +5,15 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"math/rand"
-	"time"
-
 	"github.com/33cn/chain33/system/p2p/dht/protocol"
 	types2 "github.com/33cn/chain33/system/p2p/dht/types"
 	"github.com/33cn/chain33/types"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/libp2p/go-libp2p-core/peerstore"
+	. "github.com/libp2p/go-libp2p-core/protocol"
 	"github.com/multiformats/go-multiaddr"
+	"math/rand"
+	"time"
 )
 
 //getChunk gets chunk data from p2pStore or other peers.
@@ -47,7 +47,7 @@ func (p *Protocol) getHeaders(param *types.ReqBlocks) *types.Headers {
 func (p *Protocol) getHeadersFromPeer(param *types.ReqBlocks, pid peer.ID) (*types.Headers, error) {
 	childCtx, cancel := context.WithTimeout(p.Ctx, 30*time.Second)
 	defer cancel()
-	stream, err := p.Host.NewStream(childCtx, pid, protocol.GetHeader)
+	stream, err := p.Host.NewStream(childCtx, pid, ID(protocol.GetHeader))
 	if err != nil {
 		return nil, err
 	}
@@ -104,7 +104,7 @@ func (p *Protocol) getChunkRecords(param *types.ReqChunkRecords) *types.ChunkRec
 func (p *Protocol) getChunkRecordsFromPeer(param *types.ReqChunkRecords, pid peer.ID) (*types.ChunkRecords, error) {
 	childCtx, cancel := context.WithTimeout(p.Ctx, 30*time.Second)
 	defer cancel()
-	stream, err := p.Host.NewStream(childCtx, pid, protocol.GetChunkRecord)
+	stream, err := p.Host.NewStream(childCtx, pid, ID(protocol.GetChunkRecord))
 	if err != nil {
 		return nil, err
 	}
@@ -200,7 +200,7 @@ func (p *Protocol) fetchChunkFromPeer(ctx context.Context, params *types.ChunkIn
 	tag := "p2pstore"
 	p.Host.ConnManager().Protect(pid, tag)
 	defer p.Host.ConnManager().Unprotect(pid, tag)
-	stream, err := p.Host.NewStream(childCtx, pid, protocol.FetchChunk)
+	stream, err := p.Host.NewStream(childCtx, pid, ID(protocol.FetchChunk))
 	if err != nil {
 		log.Error("fetchChunkFromPeer", "error", err)
 		return nil, nil, err

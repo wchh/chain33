@@ -2,7 +2,7 @@ package peer
 
 import (
 	"fmt"
-
+	. "github.com/libp2p/go-libp2p-core/protocol"
 	"github.com/libp2p/go-libp2p/p2p/host/relay"
 
 	"net"
@@ -27,15 +27,18 @@ import (
 
 const (
 	protoTypeID = "PeerProtocolType"
+
+	pubsubTypeID = "PubSubProtoType"
+)
+
+var (
 	peerInfoReq = "/chain33/peerinfoReq/1.0.0" //老版本
 	//peerInfoReqV2  = "/chain33/peerinfoReq/1.0.1" //新版本，增加chain33 version 信息反馈
 	peerVersionReq = "/chain33/peerVersion/1.0.0"
-	pubsubTypeID   = "PubSubProtoType"
 )
-
 var log = log15.New("module", "p2p.peer")
 
-func init() {
+func Init() {
 	prototypes.RegisterProtocol(protoTypeID, &peerInfoProtol{})
 	prototypes.RegisterStreamHandler(protoTypeID, peerInfoReq, &peerInfoHandler{})
 	//prototypes.RegisterStreamHandler(protoTypeID, peerInfoReqV2, &peerInfoHandler{})
@@ -54,6 +57,9 @@ type peerInfoProtol struct {
 
 // InitProtocol init protocol
 func (p *peerInfoProtol) InitProtocol(env *prototypes.P2PEnv) {
+	peerInfoReq = env.Prefix + peerInfoReq
+	peerVersionReq = env.Prefix + peerVersionReq
+	Init()
 	p.P2PEnv = env
 	p.p2pCfg = env.SubConfig
 	prototypes.RegisterEventHandler(types.EventPeerInfo, p.handleEvent)
@@ -159,7 +165,7 @@ func (p *peerInfoProtol) getPeerInfo() {
 			req := &prototypes.StreamRequest{
 				PeerID: peerid,
 				Data:   msgReq,
-				MsgID:  []core.ProtocolID{peerInfoReq},
+				MsgID:  []core.ProtocolID{ID(peerInfoReq)},
 			}
 			var resp types.MessagePeerInfoResp
 			err := p.SendRecvPeer(req, &resp)
@@ -271,7 +277,7 @@ func (p *peerInfoProtol) detectNodeAddr() {
 			req := &types.MessageP2PVersionReq{MessageData: p.NewMessageCommon(uuid.New().String(), localID.Pretty(), pubkey, false),
 				Message: &version}
 
-			s, err := prototypes.NewStream(p.Host, pid, peerVersionReq)
+			s, err := prototypes.NewStream(p.Host, pid, ID(peerVersionReq))
 			if err != nil {
 				log.Error("NewStream", "err", err, "remoteID", pid)
 				continue
@@ -341,16 +347,16 @@ func (h *peerInfoHandler) Handle(stream core.Stream) {
 
 	//解析处理
 	log.Debug("PeerInfo Handler", "stream proto", stream.Protocol())
-
+	prefix := fmt.Sprintf("%s-%d/", h.GetProtocol().GetP2PEnv().ChainCfg.GetTitle(), h.GetProtocol().GetP2PEnv().SubConfig.Channel)
 	switch stream.Protocol() {
-	case peerInfoReq:
+	case ID(prefix + peerInfoReq):
 		var req types.MessagePeerInfoReq
 		err := prototypes.ReadStream(&req, stream)
 		if err != nil {
 			return
 		}
 		protocol.onReq(&req, stream)
-	case peerVersionReq:
+	case ID(prefix + peerVersionReq):
 		var req types.MessageP2PVersionReq
 		err := prototypes.ReadStream(&req, stream)
 		if err != nil {

@@ -2,12 +2,12 @@ package p2pstore
 
 import (
 	"context"
-	"time"
-
 	"github.com/33cn/chain33/system/p2p/dht/protocol"
 	types2 "github.com/33cn/chain33/system/p2p/dht/types"
 	"github.com/33cn/chain33/types"
 	"github.com/libp2p/go-libp2p-core/peer"
+	. "github.com/libp2p/go-libp2p-core/protocol"
+	"time"
 )
 
 func (p *Protocol) updateHealthyRoutingTable() {
@@ -23,7 +23,7 @@ func (p *Protocol) updateHealthyRoutingTable() {
 func (p *Protocol) checkPeerHealth(id peer.ID) (bool, error) {
 	ctx, cancel := context.WithTimeout(p.Ctx, time.Minute)
 	defer cancel()
-	stream, err := p.Host.NewStream(ctx, id, protocol.IsHealthy)
+	stream, err := p.Host.NewStream(ctx, id, ID(protocol.IsHealthy))
 	if err != nil {
 		return false, err
 	}

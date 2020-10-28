@@ -3,14 +3,14 @@ package healthy
 import (
 	"context"
 	"errors"
-	"math/rand"
-	"sync/atomic"
-	"time"
-
 	"github.com/33cn/chain33/system/p2p/dht/protocol"
 	types2 "github.com/33cn/chain33/system/p2p/dht/types"
 	"github.com/33cn/chain33/types"
 	"github.com/libp2p/go-libp2p-core/peer"
+	. "github.com/libp2p/go-libp2p-core/protocol"
+	"math/rand"
+	"sync/atomic"
+	"time"
 )
 
 func (p *Protocol) updateFallBehind() {
@@ -59,7 +59,7 @@ func (p *Protocol) queryMaxHeight() int64 {
 func (p *Protocol) getLastHeaderFromPeer(pid peer.ID) (*types.Header, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 	defer cancel()
-	stream, err := p.Host.NewStream(ctx, pid, protocol.GetLastHeader)
+	stream, err := p.Host.NewStream(ctx, pid, ID(protocol.GetLastHeader))
 	if err != nil {
 		return nil, err
 	}

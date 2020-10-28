@@ -2,12 +2,12 @@ package p2pstore
 
 import (
 	"context"
-	"time"
-
 	"github.com/33cn/chain33/system/p2p/dht/protocol"
 	types2 "github.com/33cn/chain33/system/p2p/dht/types"
 	"github.com/33cn/chain33/types"
 	"github.com/libp2p/go-libp2p-core/peer"
+	. "github.com/libp2p/go-libp2p-core/protocol"
+	"time"
 )
 
 func (p *Protocol) republish() {
@@ -64,7 +64,7 @@ func (p *Protocol) notifyStoreChunk(req *types.ChunkInfoMsg) {
 func (p *Protocol) storeChunksOnPeer(pid peer.ID, reqs ...*types.ChunkInfoMsg) error {
 	ctx, cancel := context.WithTimeout(p.Ctx, time.Minute)
 	defer cancel()
-	stream, err := p.Host.NewStream(ctx, pid, protocol.StoreChunk)
+	stream, err := p.Host.NewStream(ctx, pid, ID(protocol.StoreChunk))
 	if err != nil {
 		log.Error("new stream error when store chunk", "peer id", pid, "error", err)
 		return err

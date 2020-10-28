@@ -2,8 +2,8 @@ package headers
 
 import (
 	"errors"
-
 	"github.com/libp2p/go-libp2p-core/peer"
+	. "github.com/libp2p/go-libp2p-core/protocol"
 
 	"github.com/33cn/chain33/common/log/log15"
 	"github.com/33cn/chain33/queue"
@@ -18,11 +18,12 @@ var (
 )
 
 const (
-	protoTypeID   = "HeadersProtocolType"
-	headerInfoReq = "/chain33/headerinfoReq/1.0.0"
+	protoTypeID = "HeadersProtocolType"
 )
 
-func init() {
+var headerInfoReq = "/chain33/headerinfoReq/1.0.0"
+
+func Init() {
 	prototypes.RegisterProtocol(protoTypeID, &headerInfoProtol{})
 	prototypes.RegisterStreamHandler(protoTypeID, headerInfoReq, &headerInfoHander{})
 }
@@ -34,6 +35,8 @@ type headerInfoProtol struct {
 
 // InitProtocol init protocol
 func (h *headerInfoProtol) InitProtocol(env *prototypes.P2PEnv) {
+	headerInfoReq = env.Prefix + headerInfoReq
+	Init()
 	h.P2PEnv = env
 	prototypes.RegisterEventHandler(types.EventFetchBlockHeaders, h.handleEvent)
 }
@@ -110,7 +113,7 @@ func (h *headerInfoProtol) handleEvent(msg *queue.Message) {
 		req := &prototypes.StreamRequest{
 			PeerID: rID,
 			Data:   headerReq,
-			MsgID:  []core.ProtocolID{headerInfoReq},
+			MsgID:  []core.ProtocolID{ID(headerInfoReq)},
 		}
 		var resp types.MessageHeaderResp
 		err = h.SendRecvPeer(req, &resp)
@@ -136,15 +139,13 @@ func (d *headerInfoHander) Handle(stream core.Stream) {
 
 	protocol := d.GetProtocol().(*headerInfoProtol)
 	//解析处理
-	if stream.Protocol() == headerInfoReq {
-		var data types.MessageHeaderReq
-		err := prototypes.ReadStream(&data, stream)
-		if err != nil {
-			return
-		}
-		//TODO checkCommonData
-		recvData := data.Message
-
-		protocol.onReq(data.GetMessageData().GetId(), recvData, stream)
+	var data types.MessageHeaderReq
+	err := prototypes.ReadStream(&data, stream)
+	if err != nil {
+		return
 	}
+	//TODO checkCommonData
+	recvData := data.Message
+	protocol.onReq(data.GetMessageData().GetId(), recvData, stream)
+
 }

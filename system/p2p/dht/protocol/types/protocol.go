@@ -79,6 +79,7 @@ type P2PEnv struct {
 	DB              ds.Datastore
 	RoutingTable    *kbt.RoutingTable
 	*discovery.RoutingDiscovery
+	Prefix string
 }
 
 // RoutingTabler routing table interface
