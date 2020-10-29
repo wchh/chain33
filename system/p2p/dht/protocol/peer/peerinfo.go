@@ -342,19 +342,28 @@ type peerInfoHandler struct {
 
 // Handle 处理请求
 func (h *peerInfoHandler) Handle(stream core.Stream) {
+	var peerInfoProto string
+	var peerVersionProto string
 	protocol := h.GetProtocol().(*peerInfoProtol)
+	prefix := h.GetProtocol().GetP2PEnv().Prefix
+	if !strings.Contains(peerInfoReq, prefix) {
+		peerInfoProto = prefix + peerInfoReq
+	}
 
+	if !strings.Contains(peerVersionReq, prefix) {
+		peerVersionProto = prefix + peerVersionReq
+	}
 	//解析处理
 	log.Debug("PeerInfo Handler", "stream proto", stream.Protocol())
 	switch stream.Protocol() {
-	case ID(peerInfoReq):
+	case ID(peerInfoProto):
 		var req types.MessagePeerInfoReq
 		err := prototypes.ReadStream(&req, stream)
 		if err != nil {
 			return
 		}
 		protocol.onReq(&req, stream)
-	case ID(peerVersionReq):
+	case ID(peerVersionProto):
 		var req types.MessageP2PVersionReq
 		err := prototypes.ReadStream(&req, stream)
 		if err != nil {
