@@ -354,7 +354,7 @@ func (h *peerInfoHandler) Handle(stream core.Stream) {
 		peerVersionProto = prefix + peerVersionReq
 	}
 	//解析处理
-	log.Debug("PeerInfo Handler", "stream proto", stream.Protocol())
+	log.Debug("PeerInfo Handler", "stream proto", stream.Protocol(),"peerinfoReq",peerInfoReq,"peerInfoProto",peerInfoProto)
 	switch stream.Protocol() {
 	case ID(peerInfoProto):
 		var req types.MessagePeerInfoReq
