@@ -2,7 +2,6 @@ package peer
 
 import (
 	"fmt"
-	. "github.com/libp2p/go-libp2p-core/protocol"
 	"github.com/libp2p/go-libp2p/p2p/host/relay"
 
 	"net"
@@ -41,7 +40,6 @@ var log = log15.New("module", "p2p.peer")
 func init() {
 	prototypes.RegisterProtocol(protoTypeID, &peerInfoProtol{})
 	prototypes.RegisterProtocol(pubsubTypeID, &peerPubSub{})
-
 }
 
 //type Istream
@@ -126,7 +124,7 @@ func (p *peerInfoProtol) getLoacalPeerInfo() *types.P2PPeerInfo {
 
 //p2pserver 端接收处理事件
 func (p *peerInfoProtol) onReq(req *types.MessagePeerInfoReq, s core.Stream) {
-	log.Debug(" OnReq", "localPeer", s.Conn().LocalPeer().String(), "remotePeer", s.Conn().RemotePeer().String(), "peerproto", s.Protocol())
+	log.Info(" OnReq", "localPeer", s.Conn().LocalPeer().String(), "remotePeer", s.Conn().RemotePeer().String(), "peerproto", s.Protocol())
 	peerID := p.GetHost().ID()
 	pubkey, _ := p.GetHost().Peerstore().PubKey(peerID).Bytes()
 	peerinfo := p.getLoacalPeerInfo()
@@ -164,12 +162,13 @@ func (p *peerInfoProtol) getPeerInfo() {
 			req := &prototypes.StreamRequest{
 				PeerID: peerid,
 				Data:   msgReq,
-				MsgID:  []core.ProtocolID{ID(peerInfoReq)},
+				MsgID:  []core.ProtocolID{core.ProtocolID(peerInfoReq)},
 			}
+			log.Info("getPeerInfo", "PeerProtocol", peerInfoReq)
 			var resp types.MessagePeerInfoResp
 			err := p.SendRecvPeer(req, &resp)
 			if err != nil {
-				log.Error("handleEvent", "WriteStream", err)
+				log.Error("handleEvent", "WriteStream", err, "peerInfoReq", peerInfoReq)
 				return
 			}
 			var dest types.Peer
@@ -275,8 +274,8 @@ func (p *peerInfoProtol) detectNodeAddr() {
 			pubkey, _ := p.GetHost().Peerstore().PubKey(localID).Bytes()
 			req := &types.MessageP2PVersionReq{MessageData: p.NewMessageCommon(uuid.New().String(), localID.Pretty(), pubkey, false),
 				Message: &version}
-
-			s, err := prototypes.NewStream(p.Host, pid, ID(peerVersionReq))
+			log.Info("detectNodeAddr", "verionReq", peerVersionReq)
+			s, err := prototypes.NewStream(p.Host, pid, core.ProtocolID(peerVersionReq))
 			if err != nil {
 				log.Error("NewStream", "err", err, "remoteID", pid)
 				continue
@@ -342,28 +341,18 @@ type peerInfoHandler struct {
 
 // Handle 处理请求
 func (h *peerInfoHandler) Handle(stream core.Stream) {
-	var peerInfoProto string
-	var peerVersionProto string
 	protocol := h.GetProtocol().(*peerInfoProtol)
-	prefix := h.GetProtocol().GetP2PEnv().Prefix
-	if !strings.Contains(peerInfoReq, prefix) {
-		peerInfoProto = prefix + peerInfoReq
-	}
-
-	if !strings.Contains(peerVersionReq, prefix) {
-		peerVersionProto = prefix + peerVersionReq
-	}
 	//解析处理
-	log.Debug("PeerInfo Handler", "stream proto", stream.Protocol(), "peerinfoReq", peerInfoReq, "peerInfoProto", peerInfoProto)
-	switch stream.Protocol() {
-	case ID(peerInfoProto):
+	log.Debug("PeerInfo Handler", "stream proto", stream.Protocol())
+	switch string(stream.Protocol()) {
+	case peerInfoReq:
 		var req types.MessagePeerInfoReq
 		err := prototypes.ReadStream(&req, stream)
 		if err != nil {
 			return
 		}
 		protocol.onReq(&req, stream)
-	case ID(peerVersionProto):
+	case peerVersionReq:
 		var req types.MessageP2PVersionReq
 		err := prototypes.ReadStream(&req, stream)
 		if err != nil {

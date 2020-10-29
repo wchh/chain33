@@ -146,6 +146,7 @@ func (p *ProtocolManager) Init(env *P2PEnv) {
 		var baseHandler BaseStreamHandler
 		baseHandler.child = newHandler
 		baseHandler.SetProtocol(p.protoMap[protoID])
+		log.Debug("InitProtocolManager", "msgId", msgID)
 		env.Host.SetStreamHandler(core.ProtocolID(msgID), baseHandler.HandleStream)
 	}
 

@@ -64,7 +64,7 @@ func (base *BaseProtocol) SendRecvPeer(req *StreamRequest, resp types.Message) e
 
 //NewStream new libp2p stream
 func NewStream(host core.Host, pid core.PeerID, protoIDs ...core.ProtocolID) (core.Stream, error) {
-
+	//log.Info("NewStream", "protoIDs", protoIDs)
 	stream, err := host.NewStream(context.Background(), pid, protoIDs...)
 	// EOF表示底层连接断开， 增加一次重试
 	if err == io.EOF {

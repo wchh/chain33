@@ -3,7 +3,6 @@ package headers
 import (
 	"errors"
 	"github.com/libp2p/go-libp2p-core/peer"
-	. "github.com/libp2p/go-libp2p-core/protocol"
 
 	"github.com/33cn/chain33/common/log/log15"
 	"github.com/33cn/chain33/queue"
@@ -113,7 +112,7 @@ func (h *headerInfoProtol) handleEvent(msg *queue.Message) {
 		req := &prototypes.StreamRequest{
 			PeerID: rID,
 			Data:   headerReq,
-			MsgID:  []core.ProtocolID{ID(headerInfoReq)},
+			MsgID:  []core.ProtocolID{core.ProtocolID(headerInfoReq)},
 		}
 		var resp types.MessageHeaderResp
 		err = h.SendRecvPeer(req, &resp)

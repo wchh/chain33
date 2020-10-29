@@ -3,7 +3,6 @@ package download
 import (
 	"errors"
 	"fmt"
-	. "github.com/libp2p/go-libp2p-core/protocol"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -33,7 +32,7 @@ const (
 	protoTypeID = "DownloadProtocolType"
 )
 
-var downloadBlockReq ID = "/chain33/downloadBlockReq/1.0.0"
+var downloadBlockReq = "/chain33/downloadBlockReq/1.0.0"
 
 //type Istream
 type downloadProtol struct {
@@ -41,8 +40,8 @@ type downloadProtol struct {
 }
 
 func (d *downloadProtol) InitProtocol(env *prototypes.P2PEnv) {
-	downloadBlockReq = ID(env.Prefix) + downloadBlockReq
-	prototypes.RegisterStreamHandler(protoTypeID, string(downloadBlockReq), &downloadHander{})
+	downloadBlockReq = env.Prefix + downloadBlockReq
+	prototypes.RegisterStreamHandler(protoTypeID, downloadBlockReq, &downloadHander{})
 	d.P2PEnv = env
 	//注册事件处理函数
 	prototypes.RegisterEventHandler(types.EventFetchBlocks, d.handleEvent)
@@ -242,7 +241,7 @@ ReDownload:
 	req := &prototypes.StreamRequest{
 		PeerID: task.Pid,
 		Data:   blockReq,
-		MsgID:  []core.ProtocolID{downloadBlockReq},
+		MsgID:  []core.ProtocolID{core.ProtocolID(downloadBlockReq)},
 	}
 	var resp types.MessageGetBlocksResp
 	err := d.SendRecvPeer(req, &resp)
