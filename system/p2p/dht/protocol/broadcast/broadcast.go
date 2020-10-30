@@ -10,6 +10,7 @@ import (
 	"encoding/hex"
 	"github.com/33cn/chain33/common/pubsub"
 	. "github.com/libp2p/go-libp2p-core/protocol"
+	"strings"
 	"sync/atomic"
 
 	"github.com/33cn/chain33/p2p/utils"
@@ -61,9 +62,14 @@ type broadcastProtocol struct {
 
 // InitProtocol init protocol
 func (protocol *broadcastProtocol) InitProtocol(env *prototypes.P2PEnv) {
+	if !strings.Contains(broadcastV1, env.Prefix) {
+		broadcastV1 = env.Prefix + broadcastV1
+	}
 
-	broadcastV1 = env.Prefix + broadcastV1
-	broadcastPubSub = env.Prefix + broadcastPubSub
+	if !strings.Contains(broadcastPubSub, env.Prefix) {
+		broadcastPubSub = env.Prefix + broadcastPubSub
+	}
+
 	prototypes.RegisterStreamHandler(protoTypeID, broadcastV1, &broadcastHandler{})
 	//prototypes.RegisterStreamHandler(protoTypeID, broadcastV2, &broadcastHandlerV2{})
 	prototypes.RegisterStreamHandler(protoTypeID, broadcastPubSub, &pubsubHandler{})

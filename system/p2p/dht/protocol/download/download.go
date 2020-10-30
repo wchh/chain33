@@ -3,6 +3,7 @@ package download
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -40,7 +41,9 @@ type downloadProtol struct {
 }
 
 func (d *downloadProtol) InitProtocol(env *prototypes.P2PEnv) {
-	downloadBlockReq = env.Prefix + downloadBlockReq
+	if !strings.Contains(downloadBlockReq, env.Prefix) {
+		downloadBlockReq = env.Prefix + downloadBlockReq
+	}
 	prototypes.RegisterStreamHandler(protoTypeID, downloadBlockReq, &downloadHander{})
 	d.P2PEnv = env
 	//注册事件处理函数

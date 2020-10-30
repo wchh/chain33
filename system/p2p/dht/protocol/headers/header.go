@@ -3,6 +3,7 @@ package headers
 import (
 	"errors"
 	"github.com/libp2p/go-libp2p-core/peer"
+	"strings"
 
 	"github.com/33cn/chain33/common/log/log15"
 	"github.com/33cn/chain33/queue"
@@ -34,7 +35,10 @@ type headerInfoProtol struct {
 
 // InitProtocol init protocol
 func (h *headerInfoProtol) InitProtocol(env *prototypes.P2PEnv) {
-	headerInfoReq = env.Prefix + headerInfoReq
+	if !strings.Contains(headerInfoReq, env.Prefix) {
+		headerInfoReq = env.Prefix + headerInfoReq
+	}
+
 	prototypes.RegisterStreamHandler(protoTypeID, headerInfoReq, &headerInfoHander{})
 	h.P2PEnv = env
 	prototypes.RegisterEventHandler(types.EventFetchBlockHeaders, h.handleEvent)

@@ -48,12 +48,19 @@ type peerInfoProtol struct {
 	p2pCfg       *p2pty.P2PSubConfig
 	externalAddr string
 	mutex        sync.Mutex
+	once         sync.Once
 }
 
 // InitProtocol init protocol
 func (p *peerInfoProtol) InitProtocol(env *prototypes.P2PEnv) {
-	peerInfoReq = env.Prefix + peerInfoReq
-	peerVersionReq = env.Prefix + peerVersionReq
+	if !strings.Contains(peerInfoReq, env.Prefix) {
+		peerInfoReq = env.Prefix + peerInfoReq
+	}
+
+	if !strings.Contains(peerVersionReq, env.Prefix) {
+		peerVersionReq = env.Prefix + peerVersionReq
+	}
+
 	prototypes.RegisterStreamHandler(protoTypeID, peerInfoReq, &peerInfoHandler{})
 	//prototypes.RegisterStreamHandler(protoTypeID, peerInfoReqV2, &peerInfoHandler{})
 	prototypes.RegisterStreamHandler(protoTypeID, peerVersionReq, &peerInfoHandler{})
@@ -343,7 +350,7 @@ type peerInfoHandler struct {
 func (h *peerInfoHandler) Handle(stream core.Stream) {
 	protocol := h.GetProtocol().(*peerInfoProtol)
 	//解析处理
-	log.Debug("PeerInfo Handler", "stream proto", stream.Protocol())
+	log.Info("PeerInfo Handler", "stream proto", stream.Protocol())
 	switch string(stream.Protocol()) {
 	case peerInfoReq:
 		var req types.MessagePeerInfoReq
