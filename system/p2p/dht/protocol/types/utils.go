@@ -68,11 +68,11 @@ func NewStream(host core.Host, pid core.PeerID, protoIDs ...core.ProtocolID) (co
 	stream, err := host.NewStream(context.Background(), pid, protoIDs...)
 	// EOF表示底层连接断开， 增加一次重试
 	if err == io.EOF {
-		log.Debug("NewStream", "msg", "RetryConnectEOF")
+		log.Debug(">>>>>NewStream", "msg", "RetryConnectEOF")
 		stream, err = host.NewStream(context.Background(), pid, protoIDs...)
 	}
 	if err != nil {
-		log.Error("NewStream", "pid", pid.Pretty(), "msgID", protoIDs, " err", err)
+		log.Error(">>>>>NewStream", "pid", pid.Pretty(), "msgID", protoIDs, " err", err)
 		return nil, err
 	}
 	return stream, nil
@@ -113,12 +113,12 @@ func WriteStream(data types.Message, stream core.Stream) error {
 	enc := protobufCodec.Multicodec(nil).Encoder(writer)
 	err := enc.Encode(data)
 	if err != nil {
-		log.Error("WriteStream", "pid", stream.Conn().RemotePeer().Pretty(), "msgID", stream.Protocol(), "encode err", err)
+		log.Error(">>WriteStream", "pid", stream.Conn().RemotePeer().Pretty(), "msgID", stream.Protocol(), "encode err", err)
 		return err
 	}
 	err = writer.Flush()
 	if err != nil {
-		log.Error("WriteStream", "pid", stream.Conn().RemotePeer().Pretty(), "msgID", stream.Protocol(), "flush err", err)
+		log.Error(">>WriteStream", "pid", stream.Conn().RemotePeer().Pretty(), "msgID", stream.Protocol(), "flush err", err)
 	}
 	return nil
 }
