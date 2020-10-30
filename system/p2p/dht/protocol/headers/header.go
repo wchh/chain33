@@ -4,6 +4,7 @@ import (
 	"errors"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"strings"
+	"sync"
 
 	"github.com/33cn/chain33/common/log/log15"
 	"github.com/33cn/chain33/queue"
@@ -31,15 +32,20 @@ func init() {
 //type Istream
 type headerInfoProtol struct {
 	*prototypes.BaseProtocol
+	once sync.Once
 }
 
 // InitProtocol init protocol
 func (h *headerInfoProtol) InitProtocol(env *prototypes.P2PEnv) {
-	if !strings.Contains(headerInfoReq, env.Prefix) {
-		headerInfoReq = env.Prefix + headerInfoReq
-	}
 
-	prototypes.RegisterStreamHandler(protoTypeID, headerInfoReq, &headerInfoHander{})
+	h.once.Do(func() {
+		if !strings.Contains(headerInfoReq, env.Prefix) {
+			headerInfoReq = env.Prefix + headerInfoReq
+		}
+
+		prototypes.RegisterStreamHandler(protoTypeID, headerInfoReq, &headerInfoHander{})
+	})
+
 	h.P2PEnv = env
 	prototypes.RegisterEventHandler(types.EventFetchBlockHeaders, h.handleEvent)
 }

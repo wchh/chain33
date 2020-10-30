@@ -53,17 +53,20 @@ type peerInfoProtol struct {
 
 // InitProtocol init protocol
 func (p *peerInfoProtol) InitProtocol(env *prototypes.P2PEnv) {
-	if !strings.Contains(peerInfoReq, env.Prefix) {
-		peerInfoReq = env.Prefix + peerInfoReq
-	}
+	p.once.Do(func() {
+		if !strings.Contains(peerInfoReq, env.Prefix) {
+			peerInfoReq = env.Prefix + peerInfoReq
+		}
 
-	if !strings.Contains(peerVersionReq, env.Prefix) {
-		peerVersionReq = env.Prefix + peerVersionReq
-	}
+		if !strings.Contains(peerVersionReq, env.Prefix) {
+			peerVersionReq = env.Prefix + peerVersionReq
+		}
 
-	prototypes.RegisterStreamHandler(protoTypeID, peerInfoReq, &peerInfoHandler{})
-	//prototypes.RegisterStreamHandler(protoTypeID, peerInfoReqV2, &peerInfoHandler{})
-	prototypes.RegisterStreamHandler(protoTypeID, peerVersionReq, &peerInfoHandler{})
+		prototypes.RegisterStreamHandler(protoTypeID, peerInfoReq, &peerInfoHandler{})
+		//prototypes.RegisterStreamHandler(protoTypeID, peerInfoReqV2, &peerInfoHandler{})
+		prototypes.RegisterStreamHandler(protoTypeID, peerVersionReq, &peerInfoHandler{})
+	})
+
 	p.P2PEnv = env
 	p.p2pCfg = env.SubConfig
 	prototypes.RegisterEventHandler(types.EventPeerInfo, p.handleEvent)

@@ -11,6 +11,7 @@ import (
 	"github.com/33cn/chain33/common/pubsub"
 	. "github.com/libp2p/go-libp2p-core/protocol"
 	"strings"
+	"sync"
 	"sync/atomic"
 
 	"github.com/33cn/chain33/p2p/utils"
@@ -58,21 +59,26 @@ type broadcastProtocol struct {
 	// 接收V1版本节点
 	peerV1    chan peer.ID
 	peerV1Num int32
+	once      sync.Once
 }
 
 // InitProtocol init protocol
 func (protocol *broadcastProtocol) InitProtocol(env *prototypes.P2PEnv) {
-	if !strings.Contains(broadcastV1, env.Prefix) {
-		broadcastV1 = env.Prefix + broadcastV1
-	}
 
-	if !strings.Contains(broadcastPubSub, env.Prefix) {
-		broadcastPubSub = env.Prefix + broadcastPubSub
-	}
+	protocol.once.Do(func() {
+		if !strings.Contains(broadcastV1, env.Prefix) {
+			broadcastV1 = env.Prefix + broadcastV1
+		}
 
-	prototypes.RegisterStreamHandler(protoTypeID, broadcastV1, &broadcastHandler{})
-	//prototypes.RegisterStreamHandler(protoTypeID, broadcastV2, &broadcastHandlerV2{})
-	prototypes.RegisterStreamHandler(protoTypeID, broadcastPubSub, &pubsubHandler{})
+		if !strings.Contains(broadcastPubSub, env.Prefix) {
+			broadcastPubSub = env.Prefix + broadcastPubSub
+		}
+
+		prototypes.RegisterStreamHandler(protoTypeID, broadcastV1, &broadcastHandler{})
+		//prototypes.RegisterStreamHandler(protoTypeID, broadcastV2, &broadcastHandlerV2{})
+		prototypes.RegisterStreamHandler(protoTypeID, broadcastPubSub, &pubsubHandler{})
+	})
+
 	protocol.BaseProtocol = new(prototypes.BaseProtocol)
 
 	protocol.P2PEnv = env
