@@ -38,17 +38,14 @@ var downloadBlockReq = "/chain33/downloadBlockReq/1.0.0"
 //type Istream
 type downloadProtol struct {
 	*prototypes.BaseProtocol
-	once sync.Once
 }
 
 func (d *downloadProtol) InitProtocol(env *prototypes.P2PEnv) {
 
-	d.once.Do(func() {
-		if !strings.Contains(downloadBlockReq, env.Prefix) {
-			downloadBlockReq = env.Prefix + downloadBlockReq
-		}
+	if !strings.Contains(downloadBlockReq, env.Prefix) {
+		downloadBlockReq = env.Prefix + downloadBlockReq
 		prototypes.RegisterStreamHandler(protoTypeID, downloadBlockReq, &downloadHander{})
-	})
+	}
 
 	d.P2PEnv = env
 	//注册事件处理函数

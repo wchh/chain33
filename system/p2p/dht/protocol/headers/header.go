@@ -2,16 +2,14 @@ package headers
 
 import (
 	"errors"
-	"github.com/libp2p/go-libp2p-core/peer"
-	"strings"
-	"sync"
-
 	"github.com/33cn/chain33/common/log/log15"
 	"github.com/33cn/chain33/queue"
 	prototypes "github.com/33cn/chain33/system/p2p/dht/protocol/types"
 	"github.com/33cn/chain33/types"
 	uuid "github.com/google/uuid"
 	core "github.com/libp2p/go-libp2p-core"
+	"github.com/libp2p/go-libp2p-core/peer"
+	"strings"
 )
 
 var (
@@ -32,19 +30,15 @@ func init() {
 //type Istream
 type headerInfoProtol struct {
 	*prototypes.BaseProtocol
-	once sync.Once
 }
 
 // InitProtocol init protocol
 func (h *headerInfoProtol) InitProtocol(env *prototypes.P2PEnv) {
 
-	h.once.Do(func() {
-		if !strings.Contains(headerInfoReq, env.Prefix) {
-			headerInfoReq = env.Prefix + headerInfoReq
-		}
-
+	if !strings.Contains(headerInfoReq, env.Prefix) {
+		headerInfoReq = env.Prefix + headerInfoReq
 		prototypes.RegisterStreamHandler(protoTypeID, headerInfoReq, &headerInfoHander{})
-	})
+	}
 
 	h.P2PEnv = env
 	prototypes.RegisterEventHandler(types.EventFetchBlockHeaders, h.handleEvent)
