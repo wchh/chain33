@@ -73,6 +73,14 @@ func (protocol *broadcastProtocol) InitProtocol(env *prototypes.P2PEnv) {
 		prototypes.RegisterStreamHandler(protoTypeID, broadcastPubSub, &pubsubHandler{})
 	}
 
+	if !strings.Contains(psTxTopic, env.Prefix) {
+		psTxTopic = env.Prefix + psTxTopic
+	}
+
+	if !strings.Contains(psBlockTopic, env.Prefix) {
+		psBlockTopic = env.Prefix + psBlockTopic
+	}
+
 	//prototypes.RegisterStreamHandler(protoTypeID, broadcastV2, &broadcastHandlerV2{})
 
 	protocol.BaseProtocol = new(prototypes.BaseProtocol)

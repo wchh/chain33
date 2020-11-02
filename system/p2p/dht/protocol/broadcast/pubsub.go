@@ -18,7 +18,7 @@ import (
 	"github.com/golang/snappy"
 )
 
-const (
+var (
 	psTxTopic    = "tx/v1.0.0"
 	psBlockTopic = "block/v1.0.0"
 )
