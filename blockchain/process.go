@@ -601,5 +601,5 @@ func (b *BlockChain) ProcessDelParaChainBlock(broadcast bool, blockdetail *types
 
 // IsRecordFaultErr 检测此错误是否要记录到故障错误中
 func IsRecordFaultErr(err error) bool {
-	return err != types.ErrFutureBlock && !api.IsGrpcError(err) && !api.IsQueueError(err)
+	return err.Error() != types.ErrFutureBlock.Error() && !api.IsGrpcError(err) && !api.IsQueueError(err)
 }
