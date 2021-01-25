@@ -630,7 +630,7 @@ func (bc *BaseClient) CmpBestBlock(newBlock *types.Block, cmpHash []byte) bool {
 
 	//需要比较的区块就是当前区块,
 	if bytes.Equal(cmpHash, curBlock.Hash(cfg)) {
-		if curBlock.GetHeight() == newBlock.GetHeight() && curBlock.BlockTime == newBlock.BlockTime && bytes.Equal(newBlock.GetParentHash(), curBlock.GetParentHash()) {
+		if curBlock.GetHeight() == newBlock.GetHeight() /*&& curBlock.BlockTime == newBlock.BlockTime */ && bytes.Equal(newBlock.GetParentHash(), curBlock.GetParentHash()) {
 			return bc.child.CmpBestBlock(newBlock, curBlock)
 		}
 		return false
@@ -642,7 +642,7 @@ func (bc *BaseClient) CmpBestBlock(newBlock *types.Block, cmpHash []byte) bool {
 		return false
 	}
 
-	if block.GetHeight() == newBlock.GetHeight() && block.BlockTime == newBlock.BlockTime && bytes.Equal(block.GetParentHash(), newBlock.GetParentHash()) {
+	if block.GetHeight() == newBlock.GetHeight() /*&& block.BlockTime == newBlock.BlockTime */ && bytes.Equal(block.GetParentHash(), newBlock.GetParentHash()) {
 		return bc.child.CmpBestBlock(newBlock, block)
 	}
 	return false
