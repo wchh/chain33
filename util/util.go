@@ -347,11 +347,14 @@ func PreExecBlock(client queue.Client, prevStateRoot []byte, block *types.Block,
 		if receipt.Ty == types.ExecErr {
 			errTx := block.Txs[i]
 			ulog.Error("exec tx err", "err", receipt, "txhash", common.ToHex(errTx.Hash()))
-			if errReturn { //认为这个是一个错误的区块
-				return nil, nil, types.ErrBlockExec
-			}
-			deltxs = append(deltxs, errTx)
-			continue
+			return nil, nil, types.ErrBlockExec
+			/*
+				if errReturn { //认为这个是一个错误的区块
+					return nil, nil, types.ErrBlockExec
+				}
+				deltxs = append(deltxs, errTx)
+				continue
+			*/
 		}
 		block.Txs[index] = block.Txs[i]
 		cacheTxs[index] = cacheTxs[i]
