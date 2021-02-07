@@ -265,6 +265,7 @@ func ExecBlock(client queue.Client, prevStateRoot []byte, block *types.Block, er
 		ulog.Info("ExecBlock", "height", block.Height, "ntx", len(block.Txs), "writebatchsync", sync, "cost", types.Since(beg))
 	}()
 
+	errReturn = true
 	detail, deltx, err := PreExecBlock(client, prevStateRoot, block, errReturn, sync, checkblock)
 	if err != nil {
 		return nil, nil, err
